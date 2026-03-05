@@ -39,6 +39,8 @@ model Company {
   exchangeRates ExchangeRate[]
   roles         Role[]
   loginHistories LoginHistory[]
+  coaGroups     CoaGroup[]
+  chartOfAccounts ChartOfAccount[]
 
   @@map("companies")
 }
@@ -273,4 +275,64 @@ model LoginHistory {
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   @@map("login_histories")
+}
+
+// ============================================
+// COA GROUP (Chart of Accounts Group)
+// ============================================
+model CoaGroup {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  code        String   @db.VarChar(20)
+  name        String   @db.VarChar(200)
+  nameEn      String?  @map("name_en") @db.VarChar(200)
+  accountType String   @map("account_type") @db.VarChar(20) // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts  ChartOfAccount[]
+
+  @@unique([companyId, code])
+  @@map("coa_groups")
+}
+
+// ============================================
+// CHART OF ACCOUNTS (Detail Accounts)
+// ============================================
+model ChartOfAccount {
+  id                String   @id @default(uuid())
+  companyId         String   @map("company_id")
+  coaGroupId        String   @map("coa_group_id")
+  parentCoaId       String?  @map("parent_coa_id")
+  code              String   @db.VarChar(30) // e.g., 1-1001-001
+  name              String   @db.VarChar(200)
+  nameEn            String?  @map("name_en") @db.VarChar(200)
+  accountType       String   @map("account_type") @db.VarChar(20) // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  accountSubType    String?  @map("account_sub_type") @db.VarChar(50) // Current Asset, Fixed Asset, etc.
+  normalBalance     String   @map("normal_balance") @db.VarChar(10) // DEBIT, CREDIT
+  cashFlowCategory  String?  @map("cash_flow_category") @db.VarChar(20) // OPERATING, INVESTING, FINANCING, NON_CASH, NONE
+  taxMappingCode    String?  @map("tax_mapping_code") @db.VarChar(50) // PPN, PPh21, PPh23, etc.
+  psakTag           String?  @map("psak_tag") @db.VarChar(50) // PSAK/IFRS code
+  isBudgetApplicable Boolean @default(false) @map("is_budget_applicable")
+  isIntercompany    Boolean  @default(false) @map("is_intercompany")
+  isHeader          Boolean  @default(false) @map("is_header")
+  isRetainedEarnings Boolean @default(false) @map("is_retained_earnings")
+  sortOrder         Int      @default(0) @map("sort_order")
+  level             Int      @default(1) // 1=group header, 2=sub-group, 3=detail
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  coaGroup  CoaGroup        @relation(fields: [coaGroupId], references: [id], onDelete: Cascade)
+  parent    ChartOfAccount? @relation("CoaHierarchy", fields: [parentCoaId], references: [id], onDelete: SetNull)
+  children  ChartOfAccount[] @relation("CoaHierarchy")
+
+  @@unique([companyId, code])
+  @@map("chart_of_accounts")
 }

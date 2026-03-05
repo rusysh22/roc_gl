@@ -22,6 +22,7 @@ import {
     Menu,
     X,
     BookOpen,
+    FileSpreadsheet,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,14 @@ const navItems: NavItem[] = [
             { title: "Exchange Rate", href: "/master/exchange-rate", icon: ArrowRightLeft },
             { title: "Users", href: "/master/users", icon: Users },
             { title: "Roles", href: "/master/roles", icon: Shield },
+        ],
+    },
+    {
+        title: "Chart of Accounts",
+        icon: FileSpreadsheet,
+        children: [
+            { title: "CoA Group", href: "/master/coa-group", icon: BookOpen },
+            { title: "Chart of Accounts", href: "/master/coa", icon: FileSpreadsheet },
         ],
     },
 ];
