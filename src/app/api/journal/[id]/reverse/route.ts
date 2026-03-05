@@ -23,6 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ error: `Cannot reverse journal with status ${original.status}. Only POSTED journals can be reversed.` }, { status: 400 });
         }
 
+        // B1: Prevent reversal of reversal (double reversal)
+        if (original.reversalOfId) {
+            return NextResponse.json({ error: "Cannot reverse a reversal journal" }, { status: 400 });
+        }
+
         // Parse request body for reversal date (default to today if not provided)
         let body;
         try { body = await req.json(); } catch { body = {}; }

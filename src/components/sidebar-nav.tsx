@@ -25,6 +25,12 @@ import {
     BookOpen,
     FileSpreadsheet,
     FileText,
+    Scale,
+    Coins,
+    Calculator,
+    BarChart3,
+    Gauge,
+    Banknote,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -70,7 +76,9 @@ const navItems: NavItem[] = [
         children: [
             { title: "Bank Accounts", href: "/bank-accounts", icon: Landmark },
             { title: "Spend & Receive", href: "/vouchers", icon: CircleDollarSign },
-            { title: "Internal Transfers", href: "/transfers/new", icon: ArrowRightLeft },
+            { title: "Internal Transfers", href: "/transfers", icon: ArrowRightLeft },
+            { title: "Bank Reconciliation", href: "/bank-reconciliation", icon: Scale },
+            { title: "Petty Cash", href: "/petty-cash", icon: Coins },
         ],
     },
     {
@@ -86,6 +94,26 @@ const navItems: NavItem[] = [
         icon: FileText,
         children: [
             { title: "Journal Entries", href: "/journal", icon: FileText },
+        ],
+    },
+    {
+        title: "Budget",
+        icon: Calculator,
+        children: [
+            { title: "Budget Management", href: "/budget", icon: Calculator },
+        ],
+    },
+    {
+        title: "Reports",
+        icon: BarChart3,
+        children: [
+            { title: "All Reports", href: "/reports", icon: BarChart3 },
+            { title: "General Ledger", href: "/reports/general-ledger", icon: BookOpen },
+            { title: "Trial Balance", href: "/reports/trial-balance", icon: Scale },
+            { title: "Income Statement", href: "/reports/income-statement", icon: Coins },
+            { title: "Balance Sheet", href: "/reports/balance-sheet", icon: Landmark },
+            { title: "Cash Flow", href: "/reports/cash-flow", icon: Banknote },
+            { title: "Financial Ratios", href: "/reports/financial-ratios", icon: Gauge },
         ],
     },
 ];

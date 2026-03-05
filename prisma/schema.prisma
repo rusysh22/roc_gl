@@ -46,6 +46,8 @@ model Company {
   bankAccounts  BankAccount[]
   bankTransactions BankTransaction[]
   bankReconciliations BankReconciliation[]
+  budgets       Budget[]
+  budgetDetails BudgetDetail[]
 
   @@map("companies")
 }
@@ -95,6 +97,8 @@ model User {
   createdJournals Journal[]    @relation("JournalCreator")
   postedJournals  Journal[]    @relation("JournalPoster")
   journalApprovals JournalApproval[]
+  createdBudgets   Budget[] @relation("BudgetCreator")
+  approvedBudgets  Budget[] @relation("BudgetApprover")
 
   @@unique([companyId, email])
   @@map("users")
@@ -138,6 +142,7 @@ model FiscalYear {
   company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   periods Period[]
   journals Journal[]
+  budgets  Budget[]
 
   @@unique([companyId, name])
   @@map("fiscal_years")
@@ -187,6 +192,7 @@ model Department {
   children Department[] @relation("DepartmentHierarchy")
   costCenters CostCenter[]
   journalLines JournalLine[]
+  budgetDetails BudgetDetail[]
 
   @@unique([companyId, code])
   @@map("departments")
@@ -210,6 +216,7 @@ model CostCenter {
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   journalLines JournalLine[]
+  budgetDetails BudgetDetail[]
 
   @@unique([companyId, code])
   @@map("cost_centers")
@@ -347,6 +354,7 @@ model ChartOfAccount {
   children  ChartOfAccount[] @relation("CoaHierarchy")
   journalLines JournalLine[]
   bankAccounts BankAccount[]
+  budgetDetails BudgetDetail[]
 
   @@unique([companyId, code])
   @@map("chart_of_accounts")
@@ -487,6 +495,8 @@ model BankTransaction {
   status          String   @default("UNMATCHED") @db.VarChar(20) // UNMATCHED, MATCHED, RECONCILED
   journalLineId   String?  @map("journal_line_id") // Link to GL entry when matched
   isBounced       Boolean  @default(false) @map("is_bounced")
+  bouncedAt       DateTime? @map("bounced_at")
+  bouncedReason   String?   @map("bounced_reason") @db.Text
   importBatchId   String?  @map("import_batch_id") // For import tracing
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
@@ -521,8 +531,93 @@ model BankReconciliation {
   bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   period      Period      @relation(fields: [periodId], references: [id])
+  items       BankReconciliationItem[]
 
   @@unique([bankAccountId, periodId])
   @@map("bank_reconciliations")
+}
+
+// ============================================
+// BANK RECONCILIATION ITEM (Phase 4)
+// ============================================
+model BankReconciliationItem {
+  id                String   @id @default(uuid())
+  reconciliationId  String   @map("reconciliation_id")
+  bankTransactionId String?  @map("bank_transaction_id")
+  journalLineId     String?  @map("journal_line_id")
+  matchType         String   @db.VarChar(20) // MANUAL, AUTO_EXACT, AUTO_REF, AUTO_DESC
+  confidenceScore   Decimal? @db.Decimal(5, 2) // 0-100
+  status            String   @default("MATCHED") @db.VarChar(20) // MATCHED, CONFIRMED, REJECTED
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  reconciliation BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+
+  @@map("bank_reconciliation_items")
+}
+
+// ============================================
+// BUDGET (Phase 5)
+// ============================================
+model Budget {
+  id            String    @id @default(uuid())
+  companyId     String    @map("company_id")
+  fiscalYearId  String    @map("fiscal_year_id")
+  budgetName    String    @map("budget_name") @db.VarChar(200)
+  version       String    @default("v1") @db.VarChar(50)
+  status        String    @default("DRAFT") @db.VarChar(20) // DRAFT, SUBMITTED, APPROVED, LOCKED
+  isDefault     Boolean   @default(false) @map("is_default")
+  notes         String?   @db.Text
+  createdBy     String    @map("created_by")
+  approvedBy    String?   @map("approved_by")
+  approvedAt    DateTime? @map("approved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  creator    User       @relation("BudgetCreator", fields: [createdBy], references: [id])
+  approver   User?      @relation("BudgetApprover", fields: [approvedBy], references: [id])
+  details    BudgetDetail[]
+
+  @@unique([companyId, fiscalYearId, version])
+  @@map("budgets")
+}
+
+// ============================================
+// BUDGET DETAIL (Phase 5)
+// ============================================
+model BudgetDetail {
+  id            String   @id @default(uuid())
+  budgetId      String   @map("budget_id")
+  companyId     String   @map("company_id")
+  coaId         String   @map("coa_id")
+  departmentId  String?  @map("department_id")
+  costCenterId  String?  @map("cost_center_id")
+  period1       Decimal  @default(0) @map("period_1") @db.Decimal(18, 2)
+  period2       Decimal  @default(0) @map("period_2") @db.Decimal(18, 2)
+  period3       Decimal  @default(0) @map("period_3") @db.Decimal(18, 2)
+  period4       Decimal  @default(0) @map("period_4") @db.Decimal(18, 2)
+  period5       Decimal  @default(0) @map("period_5") @db.Decimal(18, 2)
+  period6       Decimal  @default(0) @map("period_6") @db.Decimal(18, 2)
+  period7       Decimal  @default(0) @map("period_7") @db.Decimal(18, 2)
+  period8       Decimal  @default(0) @map("period_8") @db.Decimal(18, 2)
+  period9       Decimal  @default(0) @map("period_9") @db.Decimal(18, 2)
+  period10      Decimal  @default(0) @map("period_10") @db.Decimal(18, 2)
+  period11      Decimal  @default(0) @map("period_11") @db.Decimal(18, 2)
+  period12      Decimal  @default(0) @map("period_12") @db.Decimal(18, 2)
+  totalAnnual   Decimal  @default(0) @map("total_annual") @db.Decimal(18, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  budget       Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  coa          ChartOfAccount @relation(fields: [coaId], references: [id])
+  department   Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  costCenter   CostCenter?    @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+
+  @@unique([budgetId, coaId, departmentId, costCenterId])
+  @@map("budget_details")
 }
 

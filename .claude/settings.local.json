@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(xargs:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+
+      "Bash(python:*)",
+      "Bash(pip:*)",
+
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+
+      "Bash(npx prisma:*)"
+    ]
+  }
+}

@@ -3,6 +3,54 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generateJournalNumber } from "@/lib/journal";
 
+export async function GET(req: NextRequest) {
+    try {
+        const session = await auth();
+        if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const user = session.user as any;
+        if (!user.companyId) return NextResponse.json({ error: "No company" }, { status: 400 });
+
+        const searchParams = req.nextUrl.searchParams;
+        const search = searchParams.get("search") || "";
+        const dateFrom = searchParams.get("dateFrom");
+        const dateTo = searchParams.get("dateTo");
+
+        const where: any = {
+            companyId: user.companyId,
+            journalType: "IC",
+        };
+
+        if (search) {
+            where.OR = [
+                { journalNumber: { contains: search, mode: "insensitive" } },
+                { description: { contains: search, mode: "insensitive" } },
+                { referenceNumber: { contains: search, mode: "insensitive" } },
+            ];
+        }
+
+        if (dateFrom || dateTo) {
+            where.journalDate = {};
+            if (dateFrom) where.journalDate.gte = new Date(dateFrom);
+            if (dateTo) where.journalDate.lte = new Date(dateTo);
+        }
+
+        const transfers = await prisma.journal.findMany({
+            where,
+            include: {
+                lines: { include: { coa: true } },
+                period: true,
+            },
+            orderBy: { journalDate: "desc" },
+            take: 100,
+        });
+
+        return NextResponse.json(transfers);
+    } catch (error) {
+        console.error("Transfer GET error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+}
+
 export async function POST(req: NextRequest) {
     try {
         const session = await auth();

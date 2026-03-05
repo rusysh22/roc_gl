@@ -1,0 +1,4 @@
+﻿src/app/api/reports/general-ledger/route.ts(113,49): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/reports/general-ledger/route.ts(113,52): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/app/api/reports/general-ledger/route.ts(114,50): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/reports/general-ledger/route.ts(114,53): error TS7006: Parameter 't' implicitly has an 'any' type.

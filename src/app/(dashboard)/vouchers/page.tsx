@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Plus, Search, FileText, ArrowUpRight, ArrowDownRight, Loader2, ArrowRight } from "lucide-react";
+import { Plus, Search, FileText, ArrowUpRight, ArrowDownRight, Loader2, ArrowRight, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Voucher is basically a Journal of type PV or RV
 interface Voucher {
@@ -57,6 +58,22 @@ export default function VouchersPage() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         fetchVouchers(search, typeFilter);
+    };
+
+    const handleVoid = async (voucherId: string) => {
+        if (!confirm("Are you sure you want to void this voucher? This will create a reversal journal.")) return;
+        try {
+            const res = await fetch(`/api/voucher/${voucherId}/void`, { method: "POST" });
+            if (res.ok) {
+                toast.success("Voucher voided successfully");
+                fetchVouchers(search, typeFilter);
+            } else {
+                const err = await res.json();
+                toast.error(err.error || "Failed to void voucher");
+            }
+        } catch {
+            toast.error("System error occurred");
+        }
     };
 
     return (
@@ -161,9 +178,16 @@ export default function VouchersPage() {
                                             </Badge>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <Button variant="ghost" size="sm" onClick={() => router.push(`/journal/${v.id}`)} className="text-slate-400 hover:text-white hover:bg-white/10">
-                                                View GL <ArrowRight className="h-4 w-4 ml-1" />
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                {v.status === "POSTED" && (
+                                                    <Button variant="ghost" size="sm" onClick={() => handleVoid(v.id)} className="text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                                                        <Ban className="h-4 w-4 mr-1" /> Void
+                                                    </Button>
+                                                )}
+                                                <Button variant="ghost" size="sm" onClick={() => router.push(`/journal/${v.id}`)} className="text-slate-400 hover:text-white hover:bg-white/10">
+                                                    View GL <ArrowRight className="h-4 w-4 ml-1" />
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

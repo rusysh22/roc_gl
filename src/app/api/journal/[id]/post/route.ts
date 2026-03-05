@@ -21,6 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         });
 
         if (!journal) return NextResponse.json({ error: "Journal not found" }, { status: 404 });
+        if (journal.status === "REVERSED") {
+            return NextResponse.json({ error: "Cannot post a reversed journal" }, { status: 400 });
+        }
         if (journal.status !== "DRAFT" && journal.status !== "APPROVED") {
             return NextResponse.json({ error: `Cannot post journal with status ${journal.status}` }, { status: 400 });
         }

@@ -77,45 +77,48 @@ export async function POST() {
         const companyId = user.companyId;
         const template = tradingTemplate;
 
-        // Create groups
-        const groupMap: Record<string, string> = {};
-        for (const g of template.groups) {
-            const created = await prisma.coaGroup.create({
-                data: { companyId, code: g.code, name: g.name, nameEn: g.nameEn, accountType: g.accountType, sortOrder: g.sortOrder },
-            });
-            groupMap[g.code] = created.id;
-        }
-
-        // Create accounts (2 passes: first create all, then update parent references)
-        const accountMap: Record<string, string> = {};
-        for (const a of template.accounts) {
-            const normalBalance = ["ASSET", "EXPENSE"].includes(a.accountType) ? "DEBIT" : "CREDIT";
-            const created = await prisma.chartOfAccount.create({
-                data: {
-                    companyId, code: a.code, name: a.name, nameEn: a.nameEn || null,
-                    coaGroupId: groupMap[a.groupCode], accountType: a.accountType,
-                    accountSubType: a.accountSubType || null, normalBalance,
-                    cashFlowCategory: a.cashFlowCategory || null,
-                    taxMappingCode: (a as any).taxMappingCode || null,
-                    isHeader: (a as any).isHeader ?? false,
-                    isRetainedEarnings: (a as any).isRetainedEarnings ?? false,
-                    isBudgetApplicable: !((a as any).isHeader),
-                    sortOrder: a.sortOrder,
-                    level: (a as any).isHeader ? 1 : ((a as any).parentCode ? 3 : 2),
-                },
-            });
-            accountMap[a.code] = created.id;
-        }
-
-        // Update parent references
-        for (const a of template.accounts) {
-            if ((a as any).parentCode && accountMap[(a as any).parentCode]) {
-                await prisma.chartOfAccount.update({
-                    where: { id: accountMap[a.code] },
-                    data: { parentCoaId: accountMap[(a as any).parentCode] },
+        // A3: Wrap all operations in a transaction for atomicity
+        await prisma.$transaction(async (tx) => {
+            // Create groups
+            const groupMap: Record<string, string> = {};
+            for (const g of template.groups) {
+                const created = await tx.coaGroup.create({
+                    data: { companyId, code: g.code, name: g.name, nameEn: g.nameEn, accountType: g.accountType, sortOrder: g.sortOrder },
                 });
+                groupMap[g.code] = created.id;
             }
-        }
+
+            // Create accounts (2 passes: first create all, then update parent references)
+            const accountMap: Record<string, string> = {};
+            for (const a of template.accounts) {
+                const normalBalance = ["ASSET", "EXPENSE"].includes(a.accountType) ? "DEBIT" : "CREDIT";
+                const created = await tx.chartOfAccount.create({
+                    data: {
+                        companyId, code: a.code, name: a.name, nameEn: a.nameEn || null,
+                        coaGroupId: groupMap[a.groupCode], accountType: a.accountType,
+                        accountSubType: a.accountSubType || null, normalBalance,
+                        cashFlowCategory: a.cashFlowCategory || null,
+                        taxMappingCode: (a as any).taxMappingCode || null,
+                        isHeader: (a as any).isHeader ?? false,
+                        isRetainedEarnings: (a as any).isRetainedEarnings ?? false,
+                        isBudgetApplicable: !((a as any).isHeader),
+                        sortOrder: a.sortOrder,
+                        level: (a as any).isHeader ? 1 : ((a as any).parentCode ? 3 : 2),
+                    },
+                });
+                accountMap[a.code] = created.id;
+            }
+
+            // Update parent references
+            for (const a of template.accounts) {
+                if ((a as any).parentCode && accountMap[(a as any).parentCode]) {
+                    await tx.chartOfAccount.update({
+                        where: { id: accountMap[a.code] },
+                        data: { parentCoaId: accountMap[(a as any).parentCode] },
+                    });
+                }
+            }
+        });
 
         return NextResponse.json({
             success: true,
