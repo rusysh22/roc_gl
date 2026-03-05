@@ -13,6 +13,7 @@ import {
     Users,
     Shield,
     Landmark,
+    Wallet,
     ArrowRightLeft,
     Building,
     CircleDollarSign,
@@ -23,6 +24,7 @@ import {
     X,
     BookOpen,
     FileSpreadsheet,
+    FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -63,11 +65,27 @@ const navItems: NavItem[] = [
         ],
     },
     {
+        title: "Cash & Bank",
+        icon: Wallet,
+        children: [
+            { title: "Bank Accounts", href: "/bank-accounts", icon: Landmark },
+            { title: "Spend & Receive", href: "/vouchers", icon: CircleDollarSign },
+            { title: "Internal Transfers", href: "/transfers/new", icon: ArrowRightLeft },
+        ],
+    },
+    {
         title: "Chart of Accounts",
         icon: FileSpreadsheet,
         children: [
             { title: "CoA Group", href: "/master/coa-group", icon: BookOpen },
             { title: "Chart of Accounts", href: "/master/coa", icon: FileSpreadsheet },
+        ],
+    },
+    {
+        title: "Transactions",
+        icon: FileText,
+        children: [
+            { title: "Journal Entries", href: "/journal", icon: FileText },
         ],
     },
 ];
