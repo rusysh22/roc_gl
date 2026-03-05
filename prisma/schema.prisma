@@ -1,0 +1,276 @@
+// This is your Prisma schema file for gl_roc
+// General Ledger Rusydani on Cloud
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// COMPANY (Multi-Tenant Root)
+// ============================================
+model Company {
+  id               String   @id @default(uuid())
+  code             String   @unique @db.VarChar(20)
+  name             String   @db.VarChar(200)
+  npwp             String?  @db.VarChar(30)
+  address          String?  @db.Text
+  logoUrl          String?  @map("logo_url") @db.VarChar(500)
+  baseCurrency     String   @default("IDR") @map("base_currency") @db.VarChar(3)
+  timezone         String   @default("Asia/Jakarta") @db.VarChar(50)
+  language         String   @default("id") @db.VarChar(10)
+  subscriptionPlan String   @default("free") @map("subscription_plan") @db.VarChar(20)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users         User[]
+  branches      Branch[]
+  fiscalYears   FiscalYear[]
+  periods       Period[]
+  departments   Department[]
+  costCenters   CostCenter[]
+  currencies    CompanyCurrency[]
+  exchangeRates ExchangeRate[]
+  roles         Role[]
+  loginHistories LoginHistory[]
+
+  @@map("companies")
+}
+
+// ============================================
+// BRANCH
+// ============================================
+model Branch {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(200)
+  address   String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("branches")
+}
+
+// ============================================
+// USER
+// ============================================
+model User {
+  id           String    @id @default(uuid())
+  companyId    String?   @map("company_id")
+  email        String    @db.VarChar(200)
+  passwordHash String    @map("password_hash") @db.VarChar(500)
+  name         String    @db.VarChar(200)
+  roleId       String?   @map("role_id")
+  systemRole   String    @default("VIEWER") @map("system_role") @db.VarChar(50) // SUPER_ADMIN, COMPANY_ADMIN, FINANCE_MANAGER, ACCOUNTANT, VIEWER
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  twoFaEnabled Boolean   @default(false) @map("two_fa_enabled")
+  twoFaSecret  String?   @map("two_fa_secret") @db.VarChar(200)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  loginHistories LoginHistory[]
+
+  @@unique([companyId, email])
+  @@map("users")
+}
+
+// ============================================
+// ROLE
+// ============================================
+model Role {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  permissions Json     @default("[]") // Array of permission strings like ["journal.create", "report.view"]
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users   User[]
+
+  @@unique([companyId, name])
+  @@map("roles")
+}
+
+// ============================================
+// FISCAL YEAR
+// ============================================
+model FiscalYear {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  name      String   @db.VarChar(100) // e.g., FY2025
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  status    String   @default("OPEN") @db.VarChar(20) // OPEN, CLOSED
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  periods Period[]
+
+  @@unique([companyId, name])
+  @@map("fiscal_years")
+}
+
+// ============================================
+// PERIOD
+// ============================================
+model Period {
+  id           String   @id @default(uuid())
+  fiscalYearId String   @map("fiscal_year_id")
+  companyId    String   @map("company_id")
+  periodNumber Int      @map("period_number") // 1-12
+  name         String   @db.VarChar(50) // e.g., "January 2025"
+  startDate    DateTime @map("start_date") @db.Date
+  endDate      DateTime @map("end_date") @db.Date
+  status       String   @default("OPEN") @db.VarChar(20) // OPEN, CLOSED, LOCKED
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([fiscalYearId, periodNumber])
+  @@map("periods")
+}
+
+// ============================================
+// DEPARTMENT (Hierarchical)
+// ============================================
+model Department {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  code             String   @db.VarChar(20)
+  name             String   @db.VarChar(200)
+  parentId         String?  @map("parent_id")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Department[] @relation("DepartmentHierarchy")
+  costCenters CostCenter[]
+
+  @@unique([companyId, code])
+  @@map("departments")
+}
+
+// ============================================
+// COST CENTER
+// ============================================
+model CostCenter {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  code             String   @db.VarChar(20)
+  name             String   @db.VarChar(200)
+  departmentId     String?  @map("department_id")
+  budgetApplicable Boolean  @default(true) @map("budget_applicable")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, code])
+  @@map("cost_centers")
+}
+
+// ============================================
+// CURRENCY (Company-specific enabled currencies)
+// ============================================
+model Currency {
+  id            String   @id @default(uuid())
+  code          String   @unique @db.VarChar(3) // ISO 4217: IDR, USD, EUR
+  name          String   @db.VarChar(100)
+  symbol        String   @db.VarChar(10)
+  decimalPlaces Int      @default(2) @map("decimal_places")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  companies    CompanyCurrency[]
+  exchangeRates ExchangeRate[]
+
+  @@map("currencies")
+}
+
+// ============================================
+// COMPANY-CURRENCY (which currencies a company uses)
+// ============================================
+model CompanyCurrency {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  currencyId String   @map("currency_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  currency Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, currencyId])
+  @@map("company_currencies")
+}
+
+// ============================================
+// EXCHANGE RATE
+// ============================================
+model ExchangeRate {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  currencyId String   @map("currency_id")
+  date       DateTime @db.Date
+  rate       Decimal  @db.Decimal(18, 6) // Rate against base currency
+  source     String   @default("manual") @db.VarChar(20) // manual, auto
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  currency Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, currencyId, date])
+  @@map("exchange_rates")
+}
+
+// ============================================
+// LOGIN HISTORY
+// ============================================
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  companyId String?  @map("company_id")
+  ipAddress String?  @map("ip_address") @db.VarChar(50)
+  userAgent String?  @map("user_agent") @db.Text
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@map("login_histories")
+}

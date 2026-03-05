@@ -1,0 +1,944 @@
+
+gl_roc
+General Ledger Rusydani on Cloud
+
+AI Development Prompt Documentation
+Per-Phase Build Guide for Anti Gravity AI
+
+
+
+Version 3.0  |  2025
+
+📋 OVERVIEW & ARSITEKTUR SISTEM
+
+Deskripsi Sistem
+gl_roc (General Ledger Rusydani on Cloud) adalah aplikasi SaaS akuntansi berbasis web yang dirancang untuk semua jenis bisnis. Sistem ini menyediakan fitur General Ledger lengkap, mulai dari master data, journal entry, bank reconciliation, budget management, hingga laporan keuangan dan pajak yang komprehensif.
+
+Tech Stack
+
+Prinsip Multi-Tenant
+Isolasi data menggunakan Row-Level Security (RLS) di PostgreSQL
+Setiap tenant (company) memiliki schema data yang terpisah secara logis
+Subscription plan mengontrol fitur yang dapat diakses per tenant
+Super Admin dapat manage semua tenant dari satu dashboard
+
+Roadmap Phase
+
+🚀 PHASE 1: FOUNDATION, AUTH & MASTER DATA DASAR
+
+🎯 OBJECTIVE: Setup project Next.js fullstack, sistem autentikasi multi-tenant, dan master data dasar (Company, Branch, Fiscal Year, Department, Cost Center, Currency, User & Role).
+
+CONTEXT & BACKGROUND
+Phase ini adalah fondasi seluruh sistem. Semua phase berikutnya bergantung pada struktur multi-tenant, autentikasi, dan master data yang dibangun di sini. Pastikan setiap keputusan arsitektur di phase ini sudah tepat sebelum melanjutkan.
+
+TASKS & REQUIREMENTS
+1. Project Setup
+Inisialisasi project Next.js 14 dengan TypeScript, Prisma ORM, PostgreSQL, dan konfigurasi dasar.
+npx create-next-app@latest gl-roc --typescript --tailwind --app
+Install dependencies: prisma, @prisma/client, next-auth, shadcn/ui, zod, react-hook-form
+Setup folder structure: /app, /components, /lib, /prisma, /types
+Konfigurasi environment variables: DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
+Setup Prisma schema awal dengan multi-tenant base model
+
+2. Multi-Tenant Architecture
+Setiap perusahaan (tenant) adalah entitas terpisah. Semua tabel transaksi dan master data harus memiliki companyId sebagai foreign key wajib.
+Gunakan Row-Level Security (RLS) di PostgreSQL untuk isolasi data
+Setiap request API wajib memvalidasi companyId dari session user
+Super Admin memiliki akses lintas tenant untuk management
+Tenant ID harus selalu di-inject via middleware, bukan dari client
+
+3. Autentikasi & Otorisasi
+Sistem login berbasis email/password dengan JWT. Role-based access control (RBAC) per company.
+Roles: SUPER_ADMIN, COMPANY_ADMIN, FINANCE_MANAGER, ACCOUNTANT, VIEWER
+Setiap role memiliki permission matrix yang dapat dikonfigurasi
+Implementasi 2FA (Two-Factor Authentication) menggunakan TOTP
+Session management dengan refresh token otomatis
+Login history: catat IP, device, timestamp setiap login
+Password policy: minimal 8 karakter, kombinasi huruf+angka+simbol
+IP Whitelist per company (opsional, bisa diaktifkan di settings)
+
+4. Master Data: Company & Branch
+Company adalah tenant utama. Branch adalah cabang dari company tersebut.
+Company: nama, kode, NPWP, alamat, logo, mata uang default, timezone, bahasa
+Branch: nama, kode, alamat, company reference, is_active
+Satu company bisa memiliki banyak branch
+Laporan bisa di-filter per branch atau konsolidasi semua branch
+
+5. Master Data: Fiscal Year & Period
+Manajemen tahun buku dan periode akuntansi. Setiap period bisa Open atau Closed.
+Fiscal Year: nama, start date, end date, status (Open/Closed)
+Period: bulan 1-12, fiscal year reference, status (Open/Closed/Locked)
+Tidak boleh ada posting ke period yang Closed kecuali dengan override permission
+Period Close hanya bisa dilakukan setelah Period-End Checklist selesai
+
+6. Master Data: Department & Cost Center
+Department untuk struktur organisasi. Cost Center untuk tracking biaya yang lebih granular.
+Department: kode, nama, parent department (untuk hierarki), company, branch, is_active
+Cost Center: kode, nama, department reference, budget applicable, is_active
+Cost Center bisa lintas department jika diperlukan
+
+7. Master Data: Currency & Exchange Rate
+Support multi-currency. Base currency ditentukan per company.
+Currency: kode ISO (IDR, USD, SGD, EUR, dll), nama, simbol, decimal places
+Exchange Rate: currency, date, rate terhadap base currency, source (manual/auto)
+Sistem mengambil rate berdasarkan tanggal transaksi (date-specific rate)
+Jika rate tidak ada untuk tanggal tertentu, gunakan rate terdekat sebelumnya
+
+8. Master Data: User & Role Management
+Manajemen user per company dengan permission matrix yang fleksibel.
+User: nama, email, password (hashed bcrypt), role, company, is_active, last_login
+Role: nama, deskripsi, permission list (JSON)
+Permission: module.action format, contoh: journal.create, report.view, budget.approve
+Satu user hanya bisa aktif di satu company (atau multi jika di-invite)
+
+DATABASE SCHEMA
+Tabel: companies
+
+Tabel: users
+
+Tabel: fiscal_years
+
+Tabel: periods
+
+UI / UX NOTES
+Semua form menggunakan react-hook-form + zod validation
+Login page: desain clean, logo gl_roc di tengah, field email & password, tombol login biru navy
+Setelah login, redirect ke dashboard utama yang menampilkan company name dan fiscal year aktif
+Master data menggunakan DataTable dengan fitur search, filter, sort, dan pagination
+Setiap form master data memiliki tombol Save, Cancel, dan (jika edit) Delete dengan konfirmasi
+Toast notification untuk setiap aksi berhasil/gagal
+Breadcrumb navigasi di setiap halaman
+Sidebar navigasi dengan collapse/expand per modul
+
+VALIDATION & BUSINESS RULES
+Email harus unik per company (bukan global unik)
+Password minimal 8 karakter, wajib kombinasi huruf besar, kecil, angka
+Company code harus unik secara global di sistem
+Fiscal year tidak boleh overlap untuk satu company
+Period hanya bisa di-close jika semua journal di periode tersebut sudah berstatus Posted
+User tidak bisa dihapus jika sudah membuat transaksi — hanya bisa di-deactivate
+Currency base company tidak bisa diubah setelah ada transaksi
+
+DELIVERABLES
+Project Next.js 14 berjalan di local development
+Skema database Prisma lengkap untuk semua tabel Phase 1
+Halaman Login dengan autentikasi JWT berfungsi
+CRUD Master Data: Company, Branch, Fiscal Year, Period, Department, Cost Center, Currency, Exchange Rate, User, Role
+Middleware autentikasi dan otorisasi per route
+Dashboard awal setelah login dengan info company & fiscal year aktif
+Semua tabel menggunakan DataTable dengan search & pagination
+
+
+
+🚀 PHASE 2: CHART OF ACCOUNTS (CoA)
+
+🎯 OBJECTIVE: Membangun modul Chart of Accounts yang lengkap dengan Group CoA, Sub-Group, dan semua atribut yang dibutuhkan untuk auto-generate laporan keuangan dan pajak.
+
+CONTEXT & BACKGROUND
+CoA adalah jantung dari sistem akuntansi. Struktur CoA yang benar akan menentukan akurasi semua laporan keuangan. Setiap akun harus memiliki atribut yang cukup sehingga sistem dapat auto-generate Cash Flow Statement, laporan pajak, dan konsolidasi tanpa mapping manual tambahan.
+
+TASKS & REQUIREMENTS
+1. Group CoA & Sub-Group
+Struktur hierarki CoA: Group → Sub-Group → CoA Detail. Group adalah level tertinggi.
+Group CoA: kode, nama, account_type (ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE)
+Sub-Group CoA: kode, nama, group_coa reference, urutan tampil di laporan
+Hierarki bisa sampai 3 level (Group > Sub-Group > Detail)
+Group dan Sub-Group adalah header account — tidak bisa diposting langsung
+
+2. Chart of Accounts Detail
+Akun detail tempat transaksi diposting. Setiap akun memiliki atribut lengkap.
+Kode akun: format configurable per company (misal: 1-1001-001)
+Nama akun dalam Bahasa Indonesia dan Bahasa Inggris
+account_type: ASSET / LIABILITY / EQUITY / REVENUE / EXPENSE
+account_sub_type: Current Asset, Fixed Asset, Current Liability, Long-term Liability, dll
+normal_balance: DEBIT / CREDIT (otomatis berdasarkan account_type)
+cash_flow_category: OPERATING / INVESTING / FINANCING / NON_CASH / NONE
+tax_mapping_code: kode untuk auto-mapping ke laporan pajak (PPN, PPh21, PPh23, dll)
+is_budget_applicable: apakah akun ini bisa dianggarkan
+is_intercompany: apakah akun ini digunakan untuk transaksi antar perusahaan
+psak_tag: kode PSAK/IFRS untuk mapping standar akuntansi
+is_header: true jika ini akun header (tidak bisa diposting)
+is_active: status aktif/nonaktif
+parent_coa_id: referensi ke akun parent (untuk hierarki)
+
+3. CoA Template / Default
+Sediakan template CoA standar yang bisa dipilih saat setup company baru.
+Template: Perusahaan Dagang, Perusahaan Jasa, Manufaktur, Konstruksi
+User bisa import template lalu modifikasi sesuai kebutuhan
+Import CoA via Excel dengan template yang sudah disediakan
+Validasi saat import: kode duplikat, hierarki tidak valid, field wajib kosong
+
+4. CoA Structure Validator
+Fitur validasi otomatis untuk memastikan struktur CoA sudah benar sebelum mulai transaksi.
+Cek: semua account_type sudah ada (Asset, Liability, Equity, Revenue, Expense)
+Cek: tidak ada CoA orphan (detail tanpa group/sub-group)
+Cek: Cash flow category mapping lengkap untuk semua akun
+Cek: Retained Earnings account sudah di-set
+Cek: tidak ada kode akun duplikat
+Tampilkan hasil validasi dengan daftar issue yang harus diperbaiki
+
+DATABASE SCHEMA
+Tabel: coa_groups
+
+Tabel: chart_of_accounts
+
+UI / UX NOTES
+Tampilan CoA menggunakan tree view / hierarki yang bisa expand/collapse
+Warna berbeda per account_type (hijau=Asset, merah=Liability, biru=Equity, dll)
+Quick search CoA by kode atau nama saat input jurnal (typeahead/autocomplete)
+Import Excel CoA: tampilkan preview sebelum konfirmasi import
+CoA Validator menampilkan checklist dengan ikon ✅ / ⚠️ / ❌
+Tombol "Load Template" untuk memilih template CoA standar saat setup baru
+
+VALIDATION & BUSINESS RULES
+Kode CoA harus unik per company
+Header account (is_header=true) tidak bisa dipilih saat input jurnal
+Inactive account tidak bisa dipilih di jurnal baru
+Account type tidak bisa diubah jika sudah ada transaksi
+Normal balance otomatis: DEBIT untuk Asset & Expense, CREDIT untuk Liability, Equity & Revenue
+Cash flow category wajib diisi untuk semua akun (kecuali header)
+
+DELIVERABLES
+CRUD Group CoA dan Sub-Group CoA
+CRUD Chart of Accounts dengan semua atribut lengkap
+Tree view hierarki CoA
+Import CoA via Excel dengan validasi
+Template CoA standar (minimal 2 jenis bisnis)
+CoA Structure Validator dengan laporan hasil validasi
+Autocomplete search CoA untuk digunakan di form jurnal (Phase 3)
+
+
+
+🚀 PHASE 3: JOURNAL ENTRY
+
+🎯 OBJECTIVE: Membangun modul Journal Entry yang lengkap meliputi semua jenis jurnal, validasi ketat, approval workflow, recurring journal, template, dan attachment dokumen.
+
+CONTEXT & BACKGROUND
+Journal Entry adalah inti dari seluruh sistem GL. Semua transaksi keuangan masuk melalui jurnal. Phase ini harus menghasilkan sistem jurnal yang robust, aman, dan user-friendly. Setiap jurnal yang di-Post akan mempengaruhi saldo CoA dan semua laporan keuangan.
+
+TASKS & REQUIREMENTS
+1. Journal Types
+Sistem mendukung 7 jenis jurnal dengan behavior yang berbeda.
+GJ (General Journal): jurnal umum, input manual oleh user
+AJ (Adjusting Journal): jurnal penyesuaian akhir periode
+RJ (Reversing Journal): auto-generate dari AJ, dieksekusi di awal periode berikutnya
+CJ (Closing Journal): auto-generate saat year-end closing
+OJ (Opening Journal): auto-generate saat opening balance tahun baru
+RC (Recurring Journal): dijadwalkan otomatis berulang sesuai konfigurasi
+IC (Intercompany Journal): transaksi antar company dalam satu grup
+
+2. Journal Entry Form — Header
+Field-field yang ada di header jurnal.
+journal_number: auto-generate dengan format configurable (JE/2025/001/0001)
+journal_type: GJ / AJ / RJ / CJ / OJ / RC / IC
+journal_date: tanggal jurnal
+posting_date: tanggal efektif (default sama dengan journal_date)
+period: auto-detect dari posting_date
+reference_number: nomor referensi dokumen sumber (invoice, PO, kontrak)
+description: deskripsi transaksi
+currency: mata uang (default base currency company)
+exchange_rate: jika bukan base currency
+status: DRAFT / SUBMITTED / APPROVED / POSTED / REVERSED
+attachment: upload file bukti transaksi (PDF, JPG, PNG)
+tags: label bebas untuk filter (bisa multi-tag)
+
+3. Journal Entry Form — Lines
+Setiap jurnal minimal memiliki 2 baris. Total debit harus sama dengan total credit.
+line_number: urutan baris (auto)
+coa_id: pilih dari CoA aktif yang bukan header (autocomplete)
+department_id: opsional, untuk departmental report
+cost_center_id: opsional
+project_id: opsional
+description: deskripsi per baris
+debit_amount: nominal debit dalam mata uang jurnal
+credit_amount: nominal kredit dalam mata uang jurnal
+debit_base: otomatis = debit_amount × exchange_rate
+credit_base: otomatis = credit_amount × exchange_rate
+vendor_customer_id: opsional, untuk sub-ledger tracking
+tags: tag per baris (opsional)
+
+4. Validation Rules
+Semua validasi ini harus dijalankan sebelum jurnal bisa di-Post.
+Total debit HARUS = Total credit (dalam base currency)
+Minimal 2 baris jurnal
+Period harus berstatus OPEN
+CoA yang dipilih harus aktif dan bukan header account
+Tanggal tidak boleh di luar fiscal year aktif
+Jika currency bukan base currency, exchange_rate wajib > 0
+Jurnal dengan approval workflow harus berstatus APPROVED sebelum bisa di-Post
+Nominal debit atau kredit per baris tidak boleh keduanya 0
+
+5. Approval Workflow
+Konfigurasi approval matrix berdasarkan nominal transaksi.
+Approval Matrix: configurable per company berdasarkan amount range
+Contoh: < 10jt = auto approve, 10-50jt = 1 level, 50-500jt = 2 level, > 500jt = 3 level
+Approver mendapat notifikasi email & in-app saat ada jurnal pending
+Approver bisa Approve atau Reject dengan mandatory comment
+Jika Reject, status kembali ke DRAFT dan pembuat mendapat notifikasi
+Approval history tersimpan lengkap (siapa, kapan, action, comment)
+
+6. Template Journal
+User bisa simpan jurnal yang sering dipakai sebagai template.
+Template menyimpan: nama template, deskripsi, semua lines (CoA, dept, amount)
+Saat pakai template, user tinggal adjust tanggal dan nominal
+Template bisa di-share ke user lain di company yang sama
+Template bisa di-edit atau dihapus oleh pembuatnya
+
+7. Recurring Journal
+Jurnal yang dijalankan otomatis secara berkala.
+Konfigurasi: nama, template jurnal, frekuensi (daily/weekly/monthly), start date, end date
+Sistem auto-generate draft jurnal sesuai jadwal
+User perlu konfirmasi / posting setelah jurnal recurring ter-generate
+Bisa set auto-post jika tidak butuh review (untuk jurnal rutin sederhana)
+Notifikasi dikirim saat recurring journal ter-generate
+
+8. Bulk Actions
+Aksi massal untuk efisiensi pengelolaan jurnal.
+Bulk Submit: pilih beberapa jurnal DRAFT sekaligus, submit ke approval
+Bulk Approve: approver bisa approve banyak jurnal sekaligus
+Bulk Post: post banyak jurnal APPROVED sekaligus
+Bulk Export: export jurnal terpilih ke Excel/PDF
+Bulk Reverse: reverse beberapa jurnal sekaligus
+
+DATABASE SCHEMA
+Tabel: journals
+
+Tabel: journal_lines
+
+Tabel: journal_approvals
+
+UI / UX NOTES
+Form jurnal menggunakan layout split: header di atas, tabel lines di bawah
+Tabel lines bisa add/remove row secara dinamis, mirip spreadsheet
+Counter debit vs credit real-time di bawah tabel (hijau jika balance, merah jika tidak)
+Tombol Post hanya aktif jika total debit = total credit dan semua validasi lulus
+Status jurnal ditampilkan dengan badge warna: DRAFT=abu, SUBMITTED=kuning, APPROVED=biru, POSTED=hijau, REVERSED=merah
+List jurnal menggunakan DataTable dengan filter by: date range, type, status, CoA, amount range
+Klik nomor jurnal untuk lihat detail dalam modal atau halaman baru
+Tombol Print/Export di setiap jurnal untuk cetak bukti jurnal
+
+VALIDATION & BUSINESS RULES
+Total debit harus sama dengan total credit sebelum bisa di-Post (selisih = 0)
+Tidak bisa post jurnal ke period yang Closed atau Locked
+Tidak bisa post ke CoA header atau CoA yang inactive
+Journal yang sudah Posted tidak bisa diedit — hanya bisa di-Reverse
+Reversal journal otomatis membalik semua debit/kredit dari jurnal aslinya
+Recurring journal harus memiliki template yang valid sebelum bisa diaktifkan
+
+DELIVERABLES
+Form Journal Entry lengkap (header + lines) dengan semua field
+Auto-generate journal number dengan format configurable
+Validasi real-time (debit = kredit)
+Approval workflow dengan notification
+Template Journal (CRUD)
+Recurring Journal konfigurasi dan auto-generate
+Bulk Actions (submit, approve, post, reverse)
+List Journal dengan filter dan search lengkap
+Attachment upload di jurnal
+Tag / Label di jurnal dan lines
+
+
+
+🚀 PHASE 4: BANK & CASH MANAGEMENT
+
+🎯 OBJECTIVE: Membangun modul Bank Account Master, Bank Transaction, Payment & Receipt Voucher, Petty Cash, Inter-Bank Transfer, dan Bank Reconciliation (Manual & Auto Mode) dengan workspace yang intuitif.
+
+CONTEXT & BACKGROUND
+Modul Bank & Cash adalah jembatan antara General Ledger dan rekening bank nyata. Semua transaksi kas/bank harus bisa dilacak dan direkonsiliasi. Bank Reconciliation adalah fitur kritis yang memastikan saldo GL sesuai dengan rekening koran dari bank.
+
+TASKS & REQUIREMENTS
+1. Bank Account Master
+Setup rekening bank yang dimiliki perusahaan. Setiap bank account di-link ke CoA kas/bank di GL.
+account_name: nama rekening (misal: BCA Operasional IDR)
+bank_name: nama bank
+account_number: nomor rekening
+account_holder: nama pemegang rekening
+branch_name: nama cabang bank
+currency: mata uang rekening
+coa_id: link ke akun Kas/Bank di Chart of Accounts
+company_id & branch_id: kepemilikan rekening
+opening_balance & opening_date: saldo awal saat setup
+is_active: status aktif
+
+2. Payment & Receipt Voucher
+Voucher pengeluaran dan penerimaan kas/bank yang otomatis generate jurnal.
+Payment Voucher: tanggal, bank account, payee, amount, payment method, referensi, deskripsi, attachment
+Receipt Voucher: tanggal, bank account, payer, amount, receipt method, referensi, deskripsi, attachment
+Setelah voucher di-approve dan di-post, sistem otomatis generate Journal Entry terkait
+Nomor voucher auto-generate (PV/2025/001, RV/2025/001)
+Voucher bisa di-void jika terjadi kesalahan (dengan jurnal balik otomatis)
+
+3. Inter-Bank Transfer
+Transfer dana antar rekening bank milik perusahaan yang sama.
+Pilih bank sumber dan bank tujuan
+Transfer date dan value date bisa berbeda (untuk handling float)
+Amount dan exchange rate jika beda currency
+Sistem auto-generate 2 journal lines: kredit bank sumber, debit bank tujuan
+Jika value date berbeda, generate In-Transit entry
+
+4. Petty Cash Management
+Manajemen kas kecil yang terpisah dari rekening bank.
+Setup petty cash fund per lokasi/department dengan saldo awal
+Top-up petty cash: transfer dari bank ke kas kecil
+Pengeluaran petty cash: input per transaksi dengan CoA dan attachment
+Laporan mutasi petty cash: saldo awal, penerimaan, pengeluaran, saldo akhir
+Rekonsiliasi fisik vs sistem: input saldo fisik, sistem hitung selisih
+
+5. Returned / Bounced Transaction
+Penanganan transaksi yang gagal/ditolak bank.
+Cek mundur / bounced check: auto-reverse jurnal terkait
+Transfer gagal: auto-reverse dan notifikasi ke user
+Tandai transaksi yang di-return di bank statement
+Generate jurnal koreksi otomatis
+Alert notifikasi saat ada bounced transaction
+
+6. Bank Statement Import
+Import mutasi rekening koran dari file untuk digunakan dalam rekonsiliasi.
+Format yang didukung: CSV, Excel (.xlsx), MT940 (format SWIFT)
+Template Excel per bank bisa dikonfigurasi (mapping kolom)
+Preview sebelum import: tampilkan daftar transaksi yang akan diimport
+Validasi: cek duplikat berdasarkan referensi dan tanggal
+Setelah import, semua transaksi berstatus UNMATCHED
+
+7. Bank Reconciliation — Manual Mode
+User melakukan matching satu per satu antara transaksi bank dan GL.
+Workspace 2 panel: kiri = transaksi bank, kanan = transaksi GL
+User centang transaksi di kedua sisi yang cocok → sistem match-kan
+Counter saldo bank vs GL update real-time saat matching dilakukan
+Tombol "Create Journal" untuk transaksi bank yang belum ada di GL (bank charges, bunga)
+Tombol "Mark as Outstanding" untuk transaksi GL yang belum muncul di bank
+Selisih harus = 0 sebelum bisa finalize rekonsiliasi
+
+8. Bank Reconciliation — Auto Mode
+Sistem otomatis matching transaksi bank dengan GL berdasarkan rules.
+Rule 1: Match by exact amount + date (dalam toleransi ±3 hari)
+Rule 2: Match by reference number
+Rule 3: Match by description keyword (configurable)
+Rule 4: Kombinasi rules di atas dengan confidence score
+Setelah auto-match, user review hasilnya: confirm atau unmatch
+Transaksi dengan confidence score rendah ditandai untuk review manual
+Matching rules bisa dikonfigurasi per company
+
+9. Bank Reconciliation Report
+Laporan rekonsiliasi bank yang formal dan siap untuk keperluan audit.
+Bagian A: Saldo per rekening koran + penyesuaian deposit in transit & outstanding checks
+Bagian B: Saldo per GL + penyesuaian item yang belum dijurnal
+Kesimpulan: Adjusted Bank Balance vs Adjusted GL Balance (selisih harus 0)
+Detail transaksi matched, unmatched, dan outstanding per section
+Summary: jumlah transaksi matched, unmatched, completion percentage
+History rekonsiliasi per periode per bank account
+Export ke PDF dan Excel
+
+10. Cash Position Dashboard
+Real-time overview saldo semua rekening bank dan kas.
+Saldo per bank account (IDR equivalent)
+Total cash & bank position
+Indicator: reconciled vs unreconciled per bank account
+Mini chart pergerakan saldo 30 hari terakhir
+Alert jika saldo di bawah threshold yang dikonfigurasi
+
+DATABASE SCHEMA
+Tabel: bank_accounts
+
+Tabel: bank_transactions
+
+Tabel: bank_reconciliations
+
+UI / UX NOTES
+Reconciliation Workspace: layout 2 panel side-by-side yang responsif
+Highlight transaksi yang sudah di-match dengan warna hijau
+Tombol "Auto Match" yang menjalankan auto-matching dan menampilkan hasilnya
+Progress bar showing reconciliation completion percentage
+Cash Position Dashboard menggunakan card layout dengan chart mini
+Import bank statement: drag & drop file dengan progress bar
+Voucher: form yang clean dengan auto-fill dari bank account master
+
+VALIDATION & BUSINESS RULES
+Bank account harus di-link ke CoA yang account_type-nya ASSET
+Selisih rekonsiliasi harus = 0 sebelum bisa di-Finalize
+Rekonsiliasi yang sudah Finalized tidak bisa diubah (kecuali di-reopen dengan approval)
+Satu periode hanya bisa memiliki satu rekonsiliasi per bank account
+Payment/Receipt Voucher yang sudah di-post tidak bisa diedit, hanya bisa di-void
+Inter-bank transfer hanya bisa antara bank account dengan company yang sama
+
+DELIVERABLES
+CRUD Bank Account Master
+Payment Voucher & Receipt Voucher dengan auto-journal
+Inter-Bank Transfer
+Petty Cash Management
+Bank Statement Import (CSV/Excel/MT940)
+Bank Reconciliation Workspace (Manual Mode)
+Bank Reconciliation Auto-Match Engine
+Returned/Bounced Transaction handling
+Bank Reconciliation Report (PDF & Excel)
+Cash Position Dashboard
+Reconciliation History per bank per periode
+
+
+
+🚀 PHASE 5: BUDGET MODULE
+
+🎯 OBJECTIVE: Membangun modul Budget yang lengkap dengan input spreadsheet-like, budget spreading otomatis, multiple version, approval workflow, dan import via Excel.
+
+CONTEXT & BACKGROUND
+Budget adalah alat perencanaan keuangan yang kritis. Dengan modul ini, perusahaan bisa menetapkan anggaran per CoA per periode, dan sistem akan otomatis membandingkan anggaran dengan realisasi di semua laporan keuangan.
+
+TASKS & REQUIREMENTS
+1. Budget Header
+Setiap budget memiliki header yang mendefinisikan scope dan versinya.
+budget_name: nama budget (misal: Annual Budget 2025, Revised Budget Q2 2025)
+fiscal_year: tahun anggaran
+company & branch: scope perusahaan
+version: v1, v2, Revised, dll
+status: DRAFT / SUBMITTED / APPROVED / LOCKED
+is_default: apakah ini budget aktif yang digunakan untuk comparison di laporan
+notes: catatan budget
+created_by, approved_by, approved_at
+
+2. Budget Detail Input
+Input anggaran per CoA per periode dalam tampilan spreadsheet.
+Tampilan: baris = CoA, kolom = bulan (Jan-Des) + Total
+Bisa filter per department, cost center, atau project
+Input langsung di sel seperti Excel (editable grid)
+Auto-sum per CoA per tahun dan per kolom bulan
+Hanya CoA yang is_budget_applicable = true yang muncul
+Bisa input di level department atau cost center untuk detail lebih granular
+
+3. Budget Spreading Otomatis
+User cukup input total tahunan, sistem distribusikan ke 12 bulan.
+Mode Equal: bagi rata ke 12 bulan
+Mode Weighted: distribusi berdasarkan bobot yang dikonfigurasi user (misal lebih besar di Q4)
+Mode Copy Pattern: ikuti pola realisasi tahun sebelumnya
+Mode Manual: user input sendiri per bulan
+Setelah spreading, user masih bisa adjust per sel
+
+4. Multiple Budget Version
+Bisa ada beberapa versi budget dalam satu fiscal year.
+Original Budget, Revised Budget Q1, Revised Budget Q2, dll
+Hanya satu versi yang berstatus is_default = true untuk comparison di laporan
+Perbandingan antar versi bisa dilakukan di Budget Analysis Report
+Versi lama tetap tersimpan untuk audit trail
+
+5. Copy from Prior Year
+Cara cepat buat budget baru berdasarkan data historis.
+Pilih source: realisasi tahun lalu atau budget tahun lalu
+Adjustment: +/- persentase tertentu dari source
+Bisa copy per CoA tertentu atau semua sekaligus
+Hasil copy menjadi draft yang bisa diedit sebelum finalisasi
+
+6. Budget Approval Workflow
+Budget harus melalui proses approval sebelum bisa digunakan.
+Flow: DRAFT → SUBMITTED → APPROVED → LOCKED
+Notifikasi ke approver saat budget di-submit
+Approver bisa Approve atau Reject dengan komentar
+Setelah LOCKED, budget tidak bisa diubah
+Revisi budget: buat versi baru berdasarkan yang sudah Locked
+
+7. Import Budget via Excel
+Input budget massal menggunakan template Excel.
+Download template Excel dari sistem
+Template sudah berisi daftar CoA aktif yang budget-applicable
+User isi nominal per bulan di Excel
+Upload kembali, sistem validasi dan preview sebelum import
+Error report jika ada baris yang tidak valid
+
+8. Budget Alert
+Notifikasi otomatis saat anggaran hampir atau sudah terlampaui.
+Alert saat realisasi mencapai 80% dari budget (configurable threshold)
+Alert saat realisasi melebihi 100% budget
+Alert per CoA, per Department, atau per Cost Center
+Notifikasi via in-app dan email ke Finance Manager & CFO
+
+DATABASE SCHEMA
+Tabel: budgets
+
+Tabel: budget_details
+
+UI / UX NOTES
+Budget input menggunakan editable grid/table mirip spreadsheet (ag-Grid atau tanstack table editable)
+Perubahan sel langsung tersimpan secara otomatis (auto-save)
+Total per baris dan total per kolom update real-time
+Tombol "Spreading" membuka modal pilih mode spreading
+Warna berbeda untuk: budget lebih tinggi dari tahun lalu (hijau), lebih rendah (merah)
+Import Excel: drag & drop dengan preview tabel sebelum konfirmasi
+
+VALIDATION & BUSINESS RULES
+Hanya CoA dengan is_budget_applicable = true yang bisa dianggarkan
+Budget yang sudah LOCKED tidak bisa diedit — harus buat versi revisi baru
+Hanya satu budget yang bisa berstatus is_default per fiscal year per company
+Budget detail tidak boleh memiliki nominal negatif
+Copy from prior year hanya bisa dilakukan jika data source tersedia
+
+DELIVERABLES
+CRUD Budget Header (dengan versioning)
+Budget Detail Input — Spreadsheet-like editable grid
+Budget Spreading Otomatis (4 mode)
+Copy from Prior Year
+Budget Approval Workflow
+Import Budget via Excel
+Budget Alert System
+Budget vs Actual summary widget di dashboard
+
+
+
+🚀 PHASE 6: FINANCIAL REPORTS
+
+🎯 OBJECTIVE: Membangun semua laporan keuangan utama: General Ledger, Sub-Ledger, Trial Balance (dengan Worksheet mode), Income Statement, Balance Sheet, Cash Flow Statement, Statement of Changes in Equity, Budget vs Actual, dan Custom Report Builder.
+
+CONTEXT & BACKGROUND
+Laporan keuangan adalah output utama dari sistem GL. Semua laporan harus akurat, mendukung comparison mode (Actual vs Budget vs Prior Year), dapat di-drill-down ke jurnal, dan bisa diexport ke PDF dan Excel. Semua laporan menggunakan data dari journal_lines yang sudah Posted.
+
+TASKS & REQUIREMENTS
+1. General Ledger Report
+Laporan semua transaksi per CoA dalam periode tertentu.
+Filter: company, branch, fiscal year, period range, CoA (single atau multi), department, cost center
+Kolom: tanggal, nomor jurnal, deskripsi, referensi, debit, kredit, saldo berjalan
+Tampilkan saldo awal periode, mutasi, saldo akhir per CoA
+Reconciliation status per baris (✅ Reconciled / ⏳ Pending / -)
+Drill-down: klik nomor jurnal → lihat detail jurnal
+Export: PDF dan Excel
+
+2. Trial Balance
+Laporan saldo semua akun pada periode tertentu.
+Mode Simple: kode, nama CoA, total debit, total kredit, saldo
+Mode Extended (Worksheet/Lajur): saldo awal, mutasi debit, mutasi kredit, saldo akhir, kolom penyesuaian, kolom Income Statement, kolom Balance Sheet
+Comparison: Actual | vs Budget | vs Prior Year | vs Budget vs Prior Year
+Filter per department atau cost center untuk departmental trial balance
+Validasi: total debit harus = total kredit (sistem alert jika tidak balance)
+
+3. Income Statement (P&L)
+Laporan laba rugi komprehensif dengan breakdown yang jelas.
+Struktur: Revenue → COGS → Gross Profit → OPEX → EBITDA → Depreciation → EBIT → Interest → EBT → Tax → Net Profit
+Auto-calculate: Gross Margin %, EBITDA Margin %, Net Margin %
+Mode: Single Entity, Departmental (side by side), Consolidated (semua branch)
+Comparison: Actual vs Budget vs Prior Year dengan variance nominal dan %
+Multi-period: tampilkan 12 bulan sekaligus dalam satu tabel
+Drill-down per line item ke General Ledger
+Contribution margin analysis (fixed vs variable cost)
+
+4. Balance Sheet
+Laporan posisi keuangan (neraca) per tanggal tertentu.
+Struktur: Asset (Current + Non-Current) | Liability (Current + Non-Current) + Equity
+Validasi: Total Asset = Total Liability + Equity
+Comparison: Actual vs Prior Year dengan variance
+Consolidated balance sheet untuk multi-branch
+Drill-down per akun ke General Ledger
+
+5. Cash Flow Statement
+Laporan arus kas dengan dua metode.
+Direct Method: arus kas masuk dan keluar per kategori operasional
+Indirect Method: mulai dari Net Profit, adjusted dengan perubahan working capital
+Auto-generate berdasarkan cash_flow_category di CoA
+Section: Operating Activities, Investing Activities, Financing Activities
+Net increase/decrease in cash + opening cash = closing cash (harus = saldo kas di Balance Sheet)
+Comparison: Actual vs Budget vs Prior Year
+
+6. Statement of Changes in Equity
+Laporan perubahan ekuitas selama periode berjalan.
+Komponen: Share Capital, Retained Earnings, Other Comprehensive Income
+Perubahan: saldo awal, penambahan modal, dividen, net profit, saldo akhir
+Link ke net profit dari Income Statement secara otomatis
+
+7. Budget vs Actual Report
+Laporan dedicated untuk analisis variance anggaran vs realisasi.
+Filter per CoA, department, cost center, project
+Kolom: Budget, Actual, Variance (Rp), Variance (%), Achievement (%)
+Highlight: variance negatif merah, positif hijau
+Drill-down dari setiap variance ke detail transaksi
+Summary per Group CoA dan per Department
+
+8. Financial Ratio Report
+Laporan rasio keuangan standalone yang bisa di-export.
+Liquidity: Current Ratio, Quick Ratio, Cash Ratio
+Leverage: Debt to Equity, Debt to Asset
+Profitability: ROE, ROA, Net Margin, Gross Margin, EBITDA Margin
+Activity: Asset Turnover
+Semua rasio dibandingkan dengan periode sebelumnya
+Indikator kesehatan: ✅ Healthy, ⚠️ Warning, ❌ Critical (berdasarkan benchmark)
+
+9. Custom Report Builder
+User bisa buat laporan sendiri dengan pilih CoA, grouping, dan filter.
+Drag & drop CoA ke dalam laporan
+Pilih periode, comparison mode, dan level detail
+Simpan konfigurasi sebagai laporan favorit
+Bisa share laporan custom ke user lain di company yang sama
+Export ke PDF dan Excel
+
+DATABASE SCHEMA
+Tabel: report_cache (opsional, untuk performance)
+
+Tabel: custom_reports
+
+UI / UX NOTES
+Semua laporan menggunakan filter panel di bagian atas yang collapsible
+Loading state yang jelas saat laporan sedang di-generate
+Nomor diformat dengan separator ribuan (1.000.000) dan desimal (,00)
+Angka negatif ditampilkan dengan warna merah dan tanda kurung (1.000.000)
+Setiap laporan punya tombol Export PDF dan Export Excel di pojok kanan atas
+Drill-down: klik angka → buka modal atau halaman baru dengan detail transaksi
+Comparison columns: Budget dan Prior Year ditampilkan dengan warna berbeda (abu-abu)
+Variance positif/negatif: warna hijau/merah dengan ikon panah naik/turun
+Print-friendly: layout PDF menggunakan header perusahaan dan watermark
+
+VALIDATION & BUSINESS RULES
+Semua laporan hanya mengambil data dari journal_lines dengan status POSTED
+Cash Flow Statement harus balance: Net Cash Change + Opening Cash = Closing Cash
+Balance Sheet harus balance: Total Asset = Total Liability + Equity
+Laporan hanya bisa diakses oleh user dengan permission report.view
+Cache laporan harus di-invalidate setiap kali ada posting jurnal baru di periode tersebut
+
+DELIVERABLES
+General Ledger Report (dengan drill-down)
+Sub-Ledger Report
+Trial Balance (Simple & Extended/Worksheet mode)
+Income Statement (Single, Departmental, Consolidated)
+Balance Sheet (Single & Consolidated)
+Cash Flow Statement (Direct & Indirect Method)
+Statement of Changes in Equity
+Budget vs Actual Report
+Multi-Period Comparison Report (12 bulan)
+Financial Ratio Report
+Custom Report Builder
+Export PDF & Excel untuk semua laporan
+
+
+
+🚀 PHASE 7: TAX REPORTS & PERIOD-END PROCESS
+
+🎯 OBJECTIVE: Membangun laporan pajak (PPN, PPh 21/23/4ayat2, Koreksi Fiskal, Pajak Tangguhan), fitur Period-End Checklist, Fixed Asset Depreciation, Foreign Currency Revaluation, dan Year-End Closing.
+
+CONTEXT & BACKGROUND
+Phase ini menyelesaikan siklus akuntansi penuh dengan laporan pajak yang komprehensif dan proses tutup buku yang terstruktur. Period-End Checklist memastikan semua proses wajib selesai sebelum periode bisa ditutup.
+
+TASKS & REQUIREMENTS
+1. Tax Reports — PPN
+Laporan Pajak Pertambahan Nilai Masukan dan Keluaran.
+Rekap PPN Masukan: daftar semua transaksi dengan tax_mapping_code = PPN_MASUKAN
+Rekap PPN Keluaran: daftar semua transaksi dengan tax_mapping_code = PPN_KELUARAN
+Summary: PPN Keluaran - PPN Masukan = PPN Kurang/Lebih Bayar
+Filter per periode dan per vendor/customer
+Export format siap upload ke e-Faktur DJP
+Validasi: cek kelengkapan NPWP vendor/customer
+
+2. Tax Reports — PPh
+Laporan Pajak Penghasilan berbagai pasal.
+PPh 21 Summary: rekap beban gaji dan pajak karyawan per periode
+PPh 23 Summary: rekap jasa, royalti, sewa per vendor dengan tarif pajak
+PPh Pasal 4 Ayat 2: sewa tanah/bangunan, jasa konstruksi, dll
+Withholding Tax Tracking: pajak yang dipotong pihak lain atas penghasilan perusahaan
+PPh Badan Estimasi: estimasi pajak badan berdasarkan EBT dari Income Statement
+Semua laporan PPh bisa di-export ke Excel
+
+3. Tax Reconciliation (Koreksi Fiskal)
+Rekonsiliasi laba akuntansi vs laba fiskal untuk keperluan SPT Badan.
+Input koreksi fiskal positif (biaya yang tidak diakui fiskal)
+Input koreksi fiskal negatif (penghasilan yang tidak diakui fiskal)
+Hitung laba fiskal = laba akuntansi + koreksi positif - koreksi negatif
+Hitung PPh Badan terutang berdasarkan laba fiskal
+Export laporan koreksi fiskal ke Excel
+
+4. Deferred Tax Calculation (PSAK 46)
+Perhitungan pajak tangguhan sesuai standar akuntansi.
+Identifikasi temporary differences per CoA
+Hitung Deferred Tax Asset dan Deferred Tax Liability
+Auto-generate jurnal pengakuan pajak tangguhan
+Laporan rekonsiliasi pajak kini dan pajak tangguhan
+
+5. Period-End Checklist
+Checklist otomatis yang harus diselesaikan sebelum periode bisa ditutup.
+Item checklist dikonfigurasi per company (bisa tambah/kurang)
+Default checklist: Bank Reconciliation semua akun, Fixed Asset Depreciation, Recurring Journal, Currency Revaluation, Accrual Review, Budget Variance Review
+Setiap item memiliki status: Pending ⚠️, Done ✅, Not Applicable -
+Periode hanya bisa di-Close jika semua item mandatory sudah Done
+Tampilkan completion percentage (misal: 6/8 = 75%)
+
+6. Fixed Asset Depreciation Run
+Proses kalkulasi dan posting penyusutan aset tetap setiap periode.
+Hitung penyusutan per aset berdasarkan metode (Straight Line / Declining Balance)
+Preview hasil kalkulasi sebelum posting
+Bulk post jurnal penyusutan setelah review
+Laporan fixed asset schedule: nilai perolehan, akumulasi penyusutan, nilai buku per aset
+Asset disposal: jurnal otomatis saat aset dijual atau dihapus
+
+7. Foreign Currency Revaluation
+Penyesuaian nilai akun berdenominasi mata uang asing ke kurs akhir periode.
+Identifikasi semua akun non-base-currency dengan saldo
+Hitung unrealized gain/loss berdasarkan kurs akhir periode
+Auto-generate jurnal revaluation
+Laporan revaluation per akun
+Reversal otomatis di awal periode berikutnya
+
+8. Year-End Closing
+Proses tutup buku akhir tahun yang otomatis.
+Transfer saldo Revenue dan Expense ke Retained Earnings (jurnal penutup otomatis)
+Zero-out semua akun nominal (Income Statement accounts)
+Carry forward saldo akun riil (Balance Sheet accounts) sebagai Opening Balance tahun baru
+Lock fiscal year yang sudah di-close
+Generate Opening Journal untuk fiscal year baru
+
+DATABASE SCHEMA
+Tabel: fixed_assets
+
+Tabel: fiscal_corrections
+
+UI / UX NOTES
+Period-End Checklist ditampilkan sebagai card dengan progress bar di dashboard
+Checklist item yang belum selesai highlighted dengan warna kuning/oranye
+Tombol "Run Depreciation" membuka modal konfirmasi dengan preview hasil kalkulasi
+Year-End Closing memiliki konfirmasi multi-step: preview jurnal penutup → konfirmasi → eksekusi
+Tax reports menggunakan layout tabel yang bisa di-scroll horizontal untuk banyak kolom
+
+VALIDATION & BUSINESS RULES
+Year-End Closing tidak bisa dijalankan jika masih ada periode dalam fiscal year yang berstatus OPEN
+Depreciation run hanya bisa dilakukan sekali per periode per aset
+Koreksi fiskal hanya bisa diinput setelah Income Statement periode tersebut sudah final
+Period tidak bisa di-Close jika Period-End Checklist belum 100% complete (semua mandatory)
+Jurnal revaluation harus di-reverse otomatis di awal periode berikutnya
+
+DELIVERABLES
+Laporan PPN Masukan & Keluaran dengan export e-Faktur
+Laporan PPh 21, 23, Pasal 4 Ayat 2
+Withholding Tax Tracking
+Tax Reconciliation / Koreksi Fiskal
+Deferred Tax Calculation (PSAK 46)
+PPh Badan Estimasi
+Period-End Checklist
+Fixed Asset Depreciation Run & Schedule
+Foreign Currency Revaluation
+Year-End Closing (auto journal)
+Asset Disposal dengan jurnal otomatis
+
+
+
+🚀 PHASE 8: SAAS SUBSCRIPTION, SYSTEM & SECURITY
+
+🎯 OBJECTIVE: Membangun modul SaaS Subscription & Billing, Notification Center, Data Import Center, Audit Trail, System Configuration, Security, Backup & Recovery, Help & Onboarding, Performance Monitoring, Multi-language, dan REST API.
+
+CONTEXT & BACKGROUND
+Phase terakhir ini melengkapi gl_roc sebagai produk SaaS yang siap dijual ke publik. Subscription management adalah tulang punggung bisnis SaaS. Security, backup, dan monitoring memastikan keandalan sistem untuk pelanggan korporat.
+
+TASKS & REQUIREMENTS
+1. Subscription & Billing Management
+Manajemen paket berlangganan, fitur per paket, dan penagihan.
+Pricing Plans: Free (terbatas), Basic, Pro, Enterprise
+Feature Flags: setiap fitur bisa di-enable/disable per plan
+Trial Period: 14 hari gratis untuk plan Pro/Enterprise
+Tenant Onboarding Flow: wizard setup setelah registrasi (Company → CoA → User → Bank Account)
+Invoice otomatis setiap bulan/tahun per tenant
+Payment tracking: status lunas/menunggak
+Grace period & suspend otomatis untuk tenant yang tidak bayar
+Usage monitoring: jumlah user aktif, jumlah jurnal, storage yang digunakan
+
+2. Notification Center
+Sistem notifikasi in-app dan email yang komprehensif.
+In-app notification bell dengan unread counter
+Notifikasi: approval pending, journal posted, budget alert, period close reminder, bounced transaction
+Email notification: configurable per user (bisa opt-out per jenis notifikasi)
+Weekly/monthly summary report via email (opsional)
+Notification history: semua notifikasi tersimpan 90 hari
+
+3. Data Import Center
+Satu halaman terpusat untuk semua kebutuhan import data.
+Import CoA: dari Excel dengan template, validasi duplikat dan hierarki
+Import Opening Balance: saldo awal per CoA saat setup baru
+Import Historical Journal: jurnal masa lalu saat migrasi sistem
+Import Budget: dari Excel dengan template per fiscal year
+Import Bank Statement: CSV/Excel/MT940
+Import Fixed Asset: daftar aset tetap dari Excel
+Import Vendor/Customer: master data dari Excel
+Semua import: preview → validasi → konfirmasi → eksekusi → error report
+
+4. Audit Trail & Activity Log
+Pencatatan semua aktivitas sistem untuk keperluan audit dan compliance.
+Setiap create, update, delete di semua tabel dicatat otomatis
+Field yang diubah: nilai sebelum dan sesudah
+Informasi: user, timestamp, IP address, action, modul, record ID
+View by User: lihat semua aktivitas satu user dalam range waktu
+View by Document: lihat semua perubahan pada satu dokumen/jurnal
+Export audit trail ke Excel untuk keperluan audit eksternal
+Retention: 5 tahun (configurable per company)
+
+5. System Configuration per Tenant
+Konfigurasi sistem yang bisa disesuaikan per company.
+Branding: upload logo, set watermark teks pada laporan
+Format angka: separator ribuan dan desimal (1.000.000,00 atau 1,000,000.00)
+Format tanggal: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD
+Journal number format: prefix, format tahun, format bulan, nomor urut
+Email settings: SMTP konfigurasi sendiri atau gunakan default
+Timezone: pilih timezone perusahaan
+Bahasa default: Indonesia / English
+
+6. Security
+Fitur keamanan enterprise-grade.
+Two-Factor Authentication (2FA): TOTP via Google Authenticator / Authy
+IP Whitelist: batasi akses hanya dari IP tertentu per company
+Login History: catat semua percobaan login (berhasil dan gagal)
+Password Policy: complexity, expiry (90 hari), history (tidak bisa pakai 5 password terakhir)
+Session Management: force logout semua session aktif
+Account lockout: 5x salah password → locked 30 menit
+Sensitive action confirmation: konfirmasi password untuk aksi kritis (delete, year-end closing)
+
+7. Backup & Recovery
+Sistem backup data otomatis dan fitur restore.
+Auto backup: harian ke storage eksternal (S3-compatible)
+Manual backup on-demand: bisa trigger kapan saja
+Backup per tenant: setiap company bisa download backup data mereka sendiri
+Restore: Super Admin bisa restore dari backup ke environment staging untuk verifikasi
+Backup retention: 30 hari daily, 12 bulan monthly
+Notifikasi jika backup gagal
+
+8. Help & Onboarding System
+Sistem bantuan yang terintegrasi untuk memaksimalkan user adoption.
+Guided Tour: wizard interaktif saat pertama login di setiap modul baru
+Tooltip kontekstual: hover pada field → muncul penjelasan singkat
+Knowledge Base: artikel FAQ yang bisa dicari, terintegrasi di dalam aplikasi
+Onboarding checklist: daftar setup yang harus dilakukan saat tenant baru (Company → CoA → Bank → User)
+Video tutorial link per fitur (bisa di-manage oleh Super Admin)
+
+9. REST API
+API publik untuk integrasi dengan sistem eksternal.
+Authentication: API Key per tenant
+Endpoints utama: GET/POST Journal Entry, GET Reports (GL, Trial Balance), GET/POST Master Data
+Rate limiting: configurable per plan
+API Documentation: Swagger/OpenAPI auto-generated
+Webhook: notifikasi ke sistem eksternal saat ada event tertentu (journal posted, dll)
+Sandbox environment untuk testing integrasi
+
+DATABASE SCHEMA
+Tabel: subscriptions
+
+Tabel: audit_logs
+
+Tabel: api_keys
+
+UI / UX NOTES
+Onboarding wizard menggunakan step-by-step progress indicator
+Subscription plan ditampilkan dengan card comparison yang jelas per fitur
+Security settings menggunakan toggle dengan konfirmasi untuk aksi sensitif
+Audit trail menggunakan infinite scroll atau virtual list untuk performa
+API documentation terintegrasi di dalam aplikasi (tidak butuh buka tab lain)
+Backup status ditampilkan di dashboard Super Admin
+
+VALIDATION & BUSINESS RULES
+API Key tidak pernah disimpan plain text — hanya hash yang disimpan di database
+Audit log tidak bisa dihapus oleh siapapun (immutable)
+Backup harus diverifikasi checksumnya setelah selesai
+Feature flags harus dicek di setiap API request berdasarkan subscription plan
+Tenant yang expired/suspended tidak bisa login tapi datanya tetap tersimpan 90 hari
+GDPR/data privacy: tenant bisa request export semua data mereka
+
+DELIVERABLES
+Subscription & Billing Management dengan feature flags
+Tenant Onboarding Wizard
+Notification Center (in-app + email)
+Data Import Center (semua jenis import)
+Audit Trail & Activity Log
+System Configuration per Tenant
+Security: 2FA, IP Whitelist, Login History, Password Policy
+Backup & Recovery (auto + manual)
+Help & Onboarding System dengan guided tour
+REST API dengan dokumentasi Swagger
+Performance Monitoring & Error Tracking
+Super Admin Dashboard (kelola semua tenant)
+
+

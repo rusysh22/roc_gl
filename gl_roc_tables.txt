@@ -1,0 +1,319 @@
+=== TABLE 1 ===
+Layer | Teknologi | Keterangan
+Frontend | Next.js 14 + TypeScript | SSR, routing, fullstack
+UI Library | shadcn/ui + Tailwind CSS | Komponen profesional
+Backend | Next.js API Routes | Fullstack dalam 1 project
+Database | PostgreSQL | ACID compliant, multi-tenant
+ORM | Prisma | Type-safe, migration mudah
+Auth | NextAuth.js / Auth.js | JWT + RBAC + 2FA
+Hosting | VPS Ubuntu + Nginx + PM2 | Self-managed
+Cache | Redis | Session & query cache
+
+=== TABLE 2 ===
+Phase | Nama | Fokus Utama | Estimasi
+Phase 1 | Foundation & Auth | Setup project, auth, multi-tenant, master data dasar | 3-4 minggu
+Phase 2 | Chart of Accounts & CoA | Master CoA lengkap dengan semua atribut | 2-3 minggu
+Phase 3 | Journal Entry | Input jurnal, validasi, approval workflow | 3-4 minggu
+Phase 4 | Bank & Cash | Bank account, rekonsiliasi manual & auto | 3-4 minggu
+Phase 5 | Budget Module | Input budget, spreading, versioning | 2-3 minggu
+Phase 6 | Financial Reports | GL, Trial Balance, P&L, Balance Sheet, Cash Flow | 4-5 minggu
+Phase 7 | Tax Reports | PPN, PPh, koreksi fiskal, e-Faktur export | 2-3 minggu
+Phase 8 | Period-End & Closing | Checklist, depreciation, revaluation, year-end | 2-3 minggu
+Phase 9 | SaaS & System | Subscription, billing, notification, API, security | 3-4 minggu
+
+=== TABLE 3 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+code | VARCHAR(20) | Kode unik perusahaan
+name | VARCHAR(200) | Nama perusahaan
+npwp | VARCHAR(30) | NPWP perusahaan
+address | TEXT | Alamat lengkap
+logo_url | VARCHAR(500) | URL logo
+base_currency | VARCHAR(3) | Mata uang dasar (IDR)
+timezone | VARCHAR(50) | Asia/Jakarta
+language | VARCHAR(10) | id / en
+subscription_plan | VARCHAR(20) | free/basic/pro/enterprise
+is_active | BOOLEAN | Status aktif
+created_at | TIMESTAMP | Waktu dibuat
+
+=== TABLE 4 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+email | VARCHAR(200) | Email unik per company
+password_hash | VARCHAR(500) | Bcrypt hash
+name | VARCHAR(200) | Nama lengkap
+role | VARCHAR(50) | COMPANY_ADMIN / ACCOUNTANT / dll
+is_active | BOOLEAN | Status aktif
+last_login_at | TIMESTAMP | Waktu login terakhir
+two_fa_enabled | BOOLEAN | Status 2FA
+two_fa_secret | VARCHAR(200) | TOTP secret (encrypted)
+
+=== TABLE 5 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+name | VARCHAR(100) | Contoh: FY2025
+start_date | DATE | Awal tahun buku
+end_date | DATE | Akhir tahun buku
+status | VARCHAR(20) | OPEN / CLOSED
+
+=== TABLE 6 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+fiscal_year_id | UUID FK | Referensi ke fiscal_years
+company_id | UUID FK | Referensi ke companies
+period_number | INTEGER | 1-12
+start_date | DATE | Awal periode
+end_date | DATE | Akhir periode
+status | VARCHAR(20) | OPEN / CLOSED / LOCKED
+
+=== TABLE 7 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+code | VARCHAR(20) | Kode group
+name | VARCHAR(200) | Nama group
+name_en | VARCHAR(200) | Nama dalam Bahasa Inggris
+account_type | VARCHAR(20) | ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE
+sort_order | INTEGER | Urutan tampil di laporan
+is_active | BOOLEAN | Status aktif
+
+=== TABLE 8 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+coa_group_id | UUID FK | Referensi ke coa_groups
+parent_coa_id | UUID FK nullable | Untuk hierarki CoA
+code | VARCHAR(30) | Kode akun unik per company
+name | VARCHAR(200) | Nama akun
+name_en | VARCHAR(200) | Nama akun bahasa Inggris
+account_type | VARCHAR(20) | ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE
+account_sub_type | VARCHAR(50) | Current Asset, Fixed Asset, dll
+normal_balance | VARCHAR(10) | DEBIT / CREDIT
+cash_flow_category | VARCHAR(20) | OPERATING/INVESTING/FINANCING/NONE
+tax_mapping_code | VARCHAR(50) | Kode mapping pajak
+is_budget_applicable | BOOLEAN | Bisa dianggarkan
+is_intercompany | BOOLEAN | Akun intercompany
+is_header | BOOLEAN | Header account (tidak bisa diposting)
+is_active | BOOLEAN | Status aktif
+sort_order | INTEGER | Urutan dalam laporan
+
+=== TABLE 9 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+journal_number | VARCHAR(50) | Nomor jurnal auto-generate
+journal_type | VARCHAR(5) | GJ/AJ/RJ/CJ/OJ/RC/IC
+journal_date | DATE | Tanggal jurnal
+posting_date | DATE | Tanggal efektif posting
+period_id | UUID FK | Referensi ke periods
+fiscal_year_id | UUID FK | Referensi ke fiscal_years
+reference_number | VARCHAR(100) | Nomor referensi dokumen
+description | TEXT | Deskripsi transaksi
+currency_code | VARCHAR(3) | Kode mata uang
+exchange_rate | DECIMAL(18,6) | Nilai tukar
+total_debit | DECIMAL(18,2) | Total debit base currency
+total_credit | DECIMAL(18,2) | Total credit base currency
+status | VARCHAR(20) | DRAFT/SUBMITTED/APPROVED/POSTED/REVERSED
+reversal_of_id | UUID FK nullable | Referensi ke jurnal aslinya jika ini reversal
+recurring_config_id | UUID FK nullable | Referensi ke recurring config
+created_by | UUID FK | User pembuat
+posted_by | UUID FK nullable | User yang posting
+posted_at | TIMESTAMP nullable | Waktu posting
+
+=== TABLE 10 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+journal_id | UUID FK | Referensi ke journals
+company_id | UUID FK | Referensi ke companies
+line_number | INTEGER | Urutan baris
+coa_id | UUID FK | Referensi ke chart_of_accounts
+department_id | UUID FK nullable | Referensi ke departments
+cost_center_id | UUID FK nullable | Referensi ke cost_centers
+project_id | UUID FK nullable | Referensi ke projects
+description | TEXT | Deskripsi baris
+debit_amount | DECIMAL(18,2) | Debit dalam mata uang jurnal
+credit_amount | DECIMAL(18,2) | Kredit dalam mata uang jurnal
+debit_base | DECIMAL(18,2) | Debit dalam base currency
+credit_base | DECIMAL(18,2) | Kredit dalam base currency
+vendor_customer_id | UUID FK nullable | Untuk sub-ledger
+reconcile_status | VARCHAR(20) | NOT_APPLICABLE/PENDING/RECONCILED
+
+=== TABLE 11 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+journal_id | UUID FK | Referensi ke journals
+approver_id | UUID FK | User approver
+level | INTEGER | Level approval (1,2,3)
+status | VARCHAR(20) | PENDING/APPROVED/REJECTED
+comment | TEXT nullable | Komentar approver
+action_at | TIMESTAMP nullable | Waktu aksi
+
+=== TABLE 12 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+account_name | VARCHAR(200) | Nama rekening
+bank_name | VARCHAR(100) | Nama bank
+account_number | VARCHAR(50) | Nomor rekening
+account_holder | VARCHAR(200) | Nama pemegang
+currency_code | VARCHAR(3) | Mata uang
+coa_id | UUID FK | Link ke CoA Kas/Bank
+opening_balance | DECIMAL(18,2) | Saldo awal
+opening_date | DATE | Tanggal saldo awal
+is_active | BOOLEAN | Status aktif
+
+=== TABLE 13 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+bank_account_id | UUID FK | Referensi ke bank_accounts
+company_id | UUID FK | Referensi ke companies
+transaction_date | DATE | Tanggal transaksi
+value_date | DATE | Tanggal efektif
+transaction_type | VARCHAR(10) | DEBIT / CREDIT
+amount | DECIMAL(18,2) | Nominal
+reference | VARCHAR(200) | Nomor referensi
+description | TEXT | Deskripsi
+status | VARCHAR(20) | UNMATCHED/MATCHED/RECONCILED
+journal_line_id | UUID FK nullable | Link ke journal_lines setelah matched
+is_bounced | BOOLEAN | Transaksi dikembalikan
+import_batch_id | UUID nullable | Batch import reference
+
+=== TABLE 14 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+bank_account_id | UUID FK | Referensi ke bank_accounts
+company_id | UUID FK | Referensi ke companies
+period_id | UUID FK | Referensi ke periods
+status | VARCHAR(20) | DRAFT/IN_PROGRESS/FINALIZED/LOCKED
+bank_statement_balance | DECIMAL(18,2) | Saldo per rekening koran
+gl_balance | DECIMAL(18,2) | Saldo per GL
+adjusted_bank_balance | DECIMAL(18,2) | Saldo bank setelah penyesuaian
+adjusted_gl_balance | DECIMAL(18,2) | Saldo GL setelah penyesuaian
+difference | DECIMAL(18,2) | Selisih (harus 0)
+finalized_by | UUID FK nullable | User yang finalize
+finalized_at | TIMESTAMP nullable | Waktu finalisasi
+
+=== TABLE 15 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+fiscal_year_id | UUID FK | Referensi ke fiscal_years
+budget_name | VARCHAR(200) | Nama budget
+version | VARCHAR(50) | Versi budget
+status | VARCHAR(20) | DRAFT/SUBMITTED/APPROVED/LOCKED
+is_default | BOOLEAN | Budget aktif untuk comparison
+notes | TEXT | Catatan
+created_by | UUID FK | User pembuat
+approved_by | UUID FK nullable | User approver
+approved_at | TIMESTAMP nullable | Waktu approval
+
+=== TABLE 16 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+budget_id | UUID FK | Referensi ke budgets
+company_id | UUID FK | Referensi ke companies
+coa_id | UUID FK | Referensi ke chart_of_accounts
+department_id | UUID FK nullable | Referensi ke departments
+cost_center_id | UUID FK nullable | Referensi ke cost_centers
+project_id | UUID FK nullable | Referensi ke projects
+period_1 | DECIMAL(18,2) | Budget bulan Januari
+period_2 | DECIMAL(18,2) | Budget bulan Februari
+period_3 | DECIMAL(18,2) | Budget bulan Maret
+period_4 | DECIMAL(18,2) | Budget bulan April
+period_5 | DECIMAL(18,2) | Budget bulan Mei
+period_6 | DECIMAL(18,2) | Budget bulan Juni
+period_7 | DECIMAL(18,2) | Budget bulan Juli
+period_8 | DECIMAL(18,2) | Budget bulan Agustus
+period_9 | DECIMAL(18,2) | Budget bulan September
+period_10 | DECIMAL(18,2) | Budget bulan Oktober
+period_11 | DECIMAL(18,2) | Budget bulan November
+period_12 | DECIMAL(18,2) | Budget bulan Desember
+total_annual | DECIMAL(18,2) | Total tahunan (auto-sum)
+
+=== TABLE 17 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+report_type | VARCHAR(50) | Jenis laporan
+period_id | UUID FK | Periode laporan
+cache_data | JSONB | Data cache laporan
+generated_at | TIMESTAMP | Waktu generate
+is_valid | BOOLEAN | Apakah cache masih valid
+
+=== TABLE 18 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+name | VARCHAR(200) | Nama laporan custom
+config | JSONB | Konfigurasi laporan (CoA, filter, dll)
+created_by | UUID FK | User pembuat
+is_shared | BOOLEAN | Bisa dilihat user lain
+
+=== TABLE 19 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+asset_code | VARCHAR(30) | Kode aset
+asset_name | VARCHAR(200) | Nama aset
+category | VARCHAR(100) | Kategori aset
+acquisition_date | DATE | Tanggal perolehan
+acquisition_cost | DECIMAL(18,2) | Nilai perolehan
+useful_life_months | INTEGER | Umur ekonomis (bulan)
+depreciation_method | VARCHAR(20) | STRAIGHT_LINE / DECLINING_BALANCE
+salvage_value | DECIMAL(18,2) | Nilai sisa
+accumulated_depreciation | DECIMAL(18,2) | Akumulasi penyusutan
+book_value | DECIMAL(18,2) | Nilai buku (auto)
+coa_asset_id | UUID FK | CoA aset tetap
+coa_accum_dep_id | UUID FK | CoA akumulasi penyusutan
+coa_dep_expense_id | UUID FK | CoA beban penyusutan
+is_active | BOOLEAN | Status aktif
+disposal_date | DATE nullable | Tanggal disposal
+
+=== TABLE 20 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+fiscal_year_id | UUID FK | Tahun pajak
+description | TEXT | Deskripsi koreksi
+correction_type | VARCHAR(20) | POSITIVE / NEGATIVE
+amount | DECIMAL(18,2) | Nominal koreksi
+coa_id | UUID FK nullable | CoA terkait
+
+=== TABLE 21 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+plan | VARCHAR(20) | free/basic/pro/enterprise
+status | VARCHAR(20) | TRIAL/ACTIVE/SUSPENDED/CANCELLED
+trial_ends_at | TIMESTAMP nullable | Akhir masa trial
+current_period_start | DATE | Awal periode billing
+current_period_end | DATE | Akhir periode billing
+max_users | INTEGER | Batas jumlah user
+max_journals_per_month | INTEGER | Batas jurnal per bulan
+storage_limit_gb | DECIMAL(5,2) | Batas storage
+
+=== TABLE 22 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+user_id | UUID FK | User yang melakukan aksi
+action | VARCHAR(20) | CREATE/UPDATE/DELETE/VIEW
+module | VARCHAR(50) | Nama modul
+record_id | UUID | ID record yang diubah
+old_values | JSONB nullable | Nilai sebelum perubahan
+new_values | JSONB nullable | Nilai sesudah perubahan
+ip_address | VARCHAR(50) | IP address user
+created_at | TIMESTAMP | Waktu aksi
+
+=== TABLE 23 ===
+Field | Type | Keterangan
+id | UUID PK | Primary key
+company_id | UUID FK | Referensi ke companies
+key_hash | VARCHAR(500) | Hash dari API key
+name | VARCHAR(100) | Nama/deskripsi key
+permissions | JSONB | Array permission yang diizinkan
+last_used_at | TIMESTAMP nullable | Terakhir digunakan
+expires_at | TIMESTAMP nullable | Tanggal kadaluarsa
+is_active | BOOLEAN | Status aktif
