@@ -11,7 +11,7 @@ async function main() {
     if (!company) throw new Error("No company found. Did you run prisma db seed first?");
 
     const coas = await prisma.chartOfAccount.findMany({ where: { companyId: company.id } });
-    const coaIds = {};
+    const coaIds: Record<string, string> = {};
     coas.forEach(c => coaIds[c.code] = c.id);
 
     const users = await prisma.user.findMany({ where: { companyId: company.id } });
@@ -19,7 +19,7 @@ async function main() {
     const userId2 = users[1] ? users[1].id : users[0].id;
 
     const periods = await prisma.period.findMany();
-    const periodIds = {};
+    const periodIds: Record<string, string> = {};
     periods.forEach(p => {
         const d = p.startDate.toISOString().substring(0, 7); // YYYY-MM
         periodIds[d] = p.id;
