@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ComboboxCoA } from "@/components/ui/combobox-coa";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -281,25 +282,12 @@ export default function BankAccountFormPage({ params }: { params: Promise<{ id: 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 relative z-10">
                     <div className="space-y-2">
                         <Label className="text-slate-300">Linked GL Account (Asset) <span className="text-red-400">*</span></Label>
-                        <Select value={formData.coaId} onValueChange={(v) => setFormData(p => ({ ...p, coaId: v }))}>
-                            <SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white h-auto py-2">
-                                <SelectValue placeholder="Select an Asset Account" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#1e293b] border-white/[0.08] text-white max-h-[300px]">
-                                {coas.length === 0 ? (
-                                    <div className="p-2 text-sm text-slate-400 text-center">No active Asset accounts found.</div>
-                                ) : (
-                                    coas.map(coa => (
-                                        <SelectItem key={coa.id} value={coa.id}>
-                                            <div className="flex flex-col text-left">
-                                                <span className="font-medium text-slate-200">{coa.name}</span>
-                                                <span className="text-xs text-slate-500 font-mono">{coa.code}</span>
-                                            </div>
-                                        </SelectItem>
-                                    ))
-                                )}
-                            </SelectContent>
-                        </Select>
+                        <ComboboxCoA
+                            value={formData.coaId}
+                            onValueChange={(v) => setFormData(p => ({ ...p, coaId: v }))}
+                            accounts={coas}
+                            placeholder="Select an Asset Account"
+                        />
                         <p className="text-xs text-slate-500">Only detail ASSET accounts are available to link.</p>
                     </div>
 
@@ -308,7 +296,7 @@ export default function BankAccountFormPage({ params }: { params: Promise<{ id: 
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !formData.openingDate && "text-slate-500")}>
-                                    {formData.openingDate ? format(formData.openingDate, "PPP") : <span>Pick a date</span>}
+                                    {formData.openingDate ? format(formData.openingDate, "dd/MM/yyyy") : <span>Pick a date</span>}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">

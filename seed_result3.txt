@@ -1,0 +1,122 @@
+﻿≡ƒÜÇ Starting seed: PT Bangun Jaya Konstruksi (Kontraktor)
+============================================================
+
+≡ƒùæ∩╕Å  Truncating all tables...
+Γ£à All tables truncated
+≡ƒÅù∩╕Å  Creating foundation data...
+Γ£à Foundation done
+≡ƒôè Creating CoA...
+Γ£à CoA done (87 accounts)
+≡ƒÅª Creating bank accounts...
+Γ£à Bank accounts done
+≡ƒÅù∩╕Å  Creating fixed assets...
+Γ£à Fixed assets done (8 assets)
+≡ƒô¥ Creating journals...
+Γ£à Journals done (162 journals created)
+≡ƒÆ░ Creating budgets...
+node.exe : Γ¥î Seed error: 
+PrismaClientValidationError
+: 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (Γ¥î  
+   Seed error:...lidatio   
+ nError: :String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+Invalid 
+`any).budget.create()` 
+invocation in
+D:\dani_coding\roc_gl\prism
+a\seed\budgets.ts:33:38
+
+  30 
+  31 const createBudget = 
+async (fyId: string, 
+fyName: string, status: 
+string, ver: number, 
+isDefault: boolean, 
+approver?: string) => {
+  32     const budgetId = 
+uuid();
+ΓåÆ 33     await (prisma 
+as any).budget.create({
+           data: {
+             id: "250e6ccb-
+6932-4cd6-80c3-8ecc6467fbd9
+",
+             companyId: "f1
+dbd170-ed3f-4663-aa05-2f68e
+01086c5",
+             fiscalYearId: 
+"0c0af71e-2377-48c5-a6fc-60
+1eccd395f6",
+             name: "Budget 
+FY2025",
+             version: 1,
+             status: 
+"APPROVED",
+             isDefault: 
+true,
+             createdBy: "a8
+18cd9e-df46-4db7-a8a3-87b26
+85ae560",
+             approvedBy: "a
+8bae587-157d-4399-8f98-a643
+3ae4ba4e",
+             approvedAt: 
+new Date("2026-03-05T09:23:
+04.324Z"),
+         +   budgetName: 
+String
+           }
+         })
+
+Argument `budgetName` is 
+missing.
+    at 
+throwValidationException (D
+:\dani_coding\roc_gl\node_m
+odules\@prisma\client\src\r
+untime\core\errorRendering\
+throwValidationException.ts
+:45:9)
+    at 
+ei.handleRequestError (D:\d
+ani_coding\roc_gl\node_modu
+les\@prisma\client\src\runt
+ime\RequestHandler.ts:202:7
+)
+    at ei.handleAndLogReque
+stError (D:\dani_coding\roc
+_gl\node_modules\@prisma\cl
+ient\src\runtime\RequestHan
+dler.ts:174:12)
+    at ei.request (D:\dani_
+coding\roc_gl\node_modules\
+@prisma\client\src\runtime\
+RequestHandler.ts:143:12)
+    at async a (D:\dani_cod
+ing\roc_gl\node_modules\@pr
+isma\client\src\runtime\get
+PrismaClient.ts:833:24)
+    at async createBudget (
+D:\dani_coding\roc_gl\prism
+a\seed\budgets.ts:33:9)
+    at async seedBudgets (D
+:\dani_coding\roc_gl\prisma
+\seed\budgets.ts:69:5)
+    at async main (D:\dani_
+coding\roc_gl\prisma\seed-c
+ontractor.ts:36:5) {
+  clientVersion: '6.19.2'
+}

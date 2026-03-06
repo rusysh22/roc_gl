@@ -332,7 +332,7 @@ export default function BankReconciliationWorkspacePage({ params }: { params: Pr
                                     >
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <div className="text-xs text-slate-500 font-mono">{format(new Date(tx.transactionDate), "dd MMM yyyy")}</div>
+                                                <div className="text-xs text-slate-500 font-mono">{format(new Date(tx.transactionDate), "dd/MM/yyyy")}</div>
                                                 <div className="text-sm text-slate-200 mt-0.5">{tx.description || "-"}</div>
                                                 {tx.reference && <div className="text-xs text-slate-500">Ref: {tx.reference}</div>}
                                             </div>
@@ -377,7 +377,7 @@ export default function BankReconciliationWorkspacePage({ params }: { params: Pr
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <div className="text-xs text-slate-500 font-mono">
-                                                        {format(new Date(gl.journal.journalDate), "dd MMM yyyy")} · {gl.journal.journalNumber}
+                                                        {format(new Date(gl.journal.journalDate), "dd/MM/yyyy")} · {gl.journal.journalNumber}
                                                     </div>
                                                     <div className="text-sm text-slate-200 mt-0.5">{gl.description || gl.journal.description || "-"}</div>
                                                 </div>

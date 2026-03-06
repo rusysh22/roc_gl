@@ -31,6 +31,9 @@ import {
     BarChart3,
     Gauge,
     Banknote,
+    Package,
+    ClipboardCheck,
+    CalendarCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -107,6 +110,7 @@ const navItems: NavItem[] = [
         title: "Reports",
         icon: BarChart3,
         children: [
+            { title: "Financial Dashboard", href: "/reports/dashboard", icon: LayoutDashboard },
             { title: "All Reports", href: "/reports", icon: BarChart3 },
             { title: "General Ledger", href: "/reports/general-ledger", icon: BookOpen },
             { title: "Trial Balance", href: "/reports/trial-balance", icon: Scale },
@@ -114,6 +118,22 @@ const navItems: NavItem[] = [
             { title: "Balance Sheet", href: "/reports/balance-sheet", icon: Landmark },
             { title: "Cash Flow", href: "/reports/cash-flow", icon: Banknote },
             { title: "Financial Ratios", href: "/reports/financial-ratios", icon: Gauge },
+            { title: "Tax Reconciliation", href: "/tax-reconciliation", icon: FileText },
+        ],
+    },
+    {
+        title: "Fixed Assets",
+        icon: Package,
+        children: [
+            { title: "Asset Register", href: "/fixed-assets", icon: Package },
+        ],
+    },
+    {
+        title: "Period & Year-End",
+        icon: CalendarCheck,
+        children: [
+            { title: "Period-End Checklist", href: "/period-end", icon: ClipboardCheck },
+            { title: "Year-End Closing", href: "/year-end", icon: CalendarCheck },
         ],
     },
 ];
@@ -179,7 +199,7 @@ export function SidebarNav() {
                         </div>
                         {!collapsed && (
                             <span className="text-lg font-bold text-white tracking-tight">
-                                gl<span className="text-blue-400">_</span>roc
+                                Rusydani <span className="text-blue-400">GL</span>
                             </span>
                         )}
                     </div>

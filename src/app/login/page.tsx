@@ -161,7 +161,7 @@ export default function LoginPage() {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-slate-500 mt-8">
-                    © 2025 gl_roc · General Ledger Rusydani on Cloud
+                    © 2025 RoC GL · General Ledger Rusydani on Cloud
                 </p>
             </div>
         </div>

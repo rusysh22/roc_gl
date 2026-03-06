@@ -48,6 +48,8 @@ model Company {
   bankReconciliations BankReconciliation[]
   budgets       Budget[]
   budgetDetails BudgetDetail[]
+  fixedAssets   FixedAsset[]
+  fiscalCorrections FiscalCorrection[]
 
   @@map("companies")
 }
@@ -143,6 +145,7 @@ model FiscalYear {
   periods Period[]
   journals Journal[]
   budgets  Budget[]
+  fiscalCorrections FiscalCorrection[]
 
   @@unique([companyId, name])
   @@map("fiscal_years")
@@ -355,6 +358,10 @@ model ChartOfAccount {
   journalLines JournalLine[]
   bankAccounts BankAccount[]
   budgetDetails BudgetDetail[]
+  fixedAssetsAsset     FixedAsset[] @relation("AssetCoA")
+  fixedAssetsAccumDep  FixedAsset[] @relation("AccumDepCoA")
+  fixedAssetsDepExp    FixedAsset[] @relation("DepExpenseCoA")
+  fiscalCorrections    FiscalCorrection[]
 
   @@unique([companyId, code])
   @@map("chart_of_accounts")
@@ -621,3 +628,59 @@ model BudgetDetail {
   @@map("budget_details")
 }
 
+// ============================================
+// FIXED ASSET
+// ============================================
+model FixedAsset {
+  id                      String    @id @default(uuid())
+  companyId               String    @map("company_id")
+  assetCode               String    @map("asset_code") @db.VarChar(30)
+  assetName               String    @map("asset_name") @db.VarChar(200)
+  category                String    @db.VarChar(100)
+  acquisitionDate         DateTime  @map("acquisition_date") @db.Date
+  acquisitionCost         Decimal   @map("acquisition_cost") @db.Decimal(18, 2)
+  usefulLifeMonths        Int       @map("useful_life_months")
+  depreciationMethod      String    @default("STRAIGHT_LINE") @map("depreciation_method") @db.VarChar(20)
+  salvageValue            Decimal   @default(0) @map("salvage_value") @db.Decimal(18, 2)
+  accumulatedDepreciation Decimal   @default(0) @map("accumulated_depreciation") @db.Decimal(18, 2)
+  bookValue               Decimal   @default(0) @map("book_value") @db.Decimal(18, 2)
+  coaAssetId              String    @map("coa_asset_id")
+  coaAccumDepId           String    @map("coa_accum_dep_id")
+  coaDepExpenseId         String    @map("coa_dep_expense_id")
+  isActive                Boolean   @default(true) @map("is_active")
+  disposalDate            DateTime? @map("disposal_date") @db.Date
+  disposalAmount          Decimal?  @map("disposal_amount") @db.Decimal(18, 2)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  coaAsset       ChartOfAccount @relation("AssetCoA", fields: [coaAssetId], references: [id])
+  coaAccumDep    ChartOfAccount @relation("AccumDepCoA", fields: [coaAccumDepId], references: [id])
+  coaDepExpense  ChartOfAccount @relation("DepExpenseCoA", fields: [coaDepExpenseId], references: [id])
+
+  @@unique([companyId, assetCode])
+  @@map("fixed_assets")
+}
+
+// ============================================
+// FISCAL CORRECTION (Koreksi Fiskal)
+// ============================================
+model FiscalCorrection {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  fiscalYearId    String   @map("fiscal_year_id")
+  description     String   @db.Text
+  correctionType  String   @map("correction_type") @db.VarChar(20) // POSITIVE, NEGATIVE
+  amount          Decimal  @db.Decimal(18, 2)
+  coaId           String?  @map("coa_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear     @relation(fields: [fiscalYearId], references: [id])
+  coa        ChartOfAccount? @relation(fields: [coaId], references: [id])
+
+  @@map("fiscal_corrections")
+}

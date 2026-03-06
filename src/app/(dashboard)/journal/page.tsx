@@ -142,10 +142,10 @@ export default function JournalListPage() {
                                 {dateRange.from ? (
                                     dateRange.to ? (
                                         <>
-                                            {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                                            {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
                                         </>
                                     ) : (
-                                        format(dateRange.from, "LLL dd, y")
+                                        format(dateRange.from, "dd/MM/yyyy")
                                     )
                                 ) : (
                                     <span>Pick a date range</span>
@@ -197,7 +197,7 @@ export default function JournalListPage() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-slate-300">
-                                            {format(new Date(journal.journalDate), "dd MMM yyyy")}
+                                            {format(new Date(journal.journalDate), "dd/MM/yyyy")}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="text-sm text-slate-200 line-clamp-1 max-w-[250px]">{journal.description || "-"}</div>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ComboboxCoA } from "@/components/ui/combobox-coa";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -226,7 +227,7 @@ function NewVoucherContent() {
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04] h-11", !header.date && "text-slate-500")}>
-                                            {header.date ? format(header.date, "PPP") : <span>Pick a date</span>}
+                                            {header.date ? format(header.date, "dd/MM/yyyy") : <span>Pick a date</span>}
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
@@ -273,19 +274,12 @@ function NewVoucherContent() {
                             <div key={line.id} className="flex flex-col sm:flex-row gap-3 items-start group">
                                 <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
                                     <div className="sm:col-span-5">
-                                        <Select value={line.coaId} onValueChange={(v) => updateLine(line.id, "coaId", v)}>
-                                            <SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white h-11">
-                                                <SelectValue placeholder="Select Account" />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#1e293b] border-white/[0.08] text-white max-h-[300px]">
-                                                {coas.map(coa => (
-                                                    <SelectItem key={coa.id} value={coa.id}>
-                                                        <span className="font-mono text-xs text-slate-400 mr-2">{coa.code}</span>
-                                                        <span className="font-medium text-slate-200">{coa.name}</span>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <ComboboxCoA
+                                            value={line.coaId}
+                                            onValueChange={(v) => updateLine(line.id, "coaId", v)}
+                                            accounts={coas}
+                                            placeholder="Select Account"
+                                        />
                                     </div>
                                     <div className="sm:col-span-4">
                                         <Input

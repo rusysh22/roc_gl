@@ -14,19 +14,22 @@ export async function GET(req: NextRequest) {
         const q = searchParams.get("q") || "";
         const limit = parseInt(searchParams.get("limit") || "20");
 
-        if (!q || q.length < 1) return NextResponse.json([]);
+        const whereClause: any = {
+            companyId: user.companyId,
+            isHeader: false,
+            isActive: true,
+        };
+
+        if (q && q.length > 0) {
+            whereClause.OR = [
+                { code: { contains: q, mode: "insensitive" } },
+                { name: { contains: q, mode: "insensitive" } },
+                { nameEn: { contains: q, mode: "insensitive" } },
+            ];
+        }
 
         const accounts = await prisma.chartOfAccount.findMany({
-            where: {
-                companyId: user.companyId,
-                isHeader: false,
-                isActive: true,
-                OR: [
-                    { code: { contains: q, mode: "insensitive" } },
-                    { name: { contains: q, mode: "insensitive" } },
-                    { nameEn: { contains: q, mode: "insensitive" } },
-                ],
-            },
+            where: whereClause,
             select: {
                 id: true, code: true, name: true, nameEn: true,
                 accountType: true, normalBalance: true,

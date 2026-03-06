@@ -163,7 +163,7 @@ export default function VouchersPage() {
                                             </Badge>
                                         </td>
                                         <td className="px-6 py-4 text-slate-300">
-                                            {format(new Date(v.journalDate), "dd MMM yyyy")}
+                                            {format(new Date(v.journalDate), "dd/MM/yyyy")}
                                             <div className="text-xs text-slate-500 mt-0.5">{v.period?.name}</div>
                                         </td>
                                         <td className="px-6 py-4 text-slate-300 max-w-[200px] truncate">

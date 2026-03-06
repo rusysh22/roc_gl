@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Landmark, Search, AlertTriangle, CheckCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Landmark, Search, AlertTriangle, CheckCircle, Download } from "lucide-react";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,21 +17,109 @@ import { cn } from "@/lib/utils";
 export default function BalanceSheetPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [periods, setPeriods] = useState<any[]>([]);
-    const [selectedPeriod, setSelectedPeriod] = useState("");
     const [data, setData] = useState<any>(null);
-
-    useEffect(() => { fetch("/api/master/period").then(r => r.ok ? r.json() : []).then(setPeriods); }, []);
+    const [asOfDate, setAsOfDate] = useState<Date | undefined>(new Date());
 
     const handleGenerate = async () => {
         setLoading(true);
         const params = new URLSearchParams();
-        if (selectedPeriod) params.set("periodId", selectedPeriod);
+        if (asOfDate) params.set("asOfDate", format(asOfDate, "yyyy-MM-dd"));
         try {
             const res = await fetch(`/api/reports/balance-sheet?${params}`);
             if (res.ok) setData(await res.json());
         } catch { toast.error("System error"); }
         finally { setLoading(false); }
+    };
+
+    const flatSection = (sectionName: string, sectionData: any, isSubtraction = false) => {
+        const rows = [
+            { Category: sectionName, Code: "", Account: "", Balance: "" },
+            ...sectionData.items.map((i: any) => ({
+                Category: "",
+                Code: i.code,
+                Account: i.name,
+                Balance: isSubtraction ? -i.balance : i.balance
+            })),
+            { Category: `Total ${sectionName}`, Code: "", Account: "", Balance: isSubtraction ? -sectionData.total : sectionData.total }
+        ];
+        return rows;
+    };
+
+    const handleExportExcel = () => {
+        if (!data) return;
+
+        const exportData = [
+            { Category: "ASSETS", Code: "", Account: "", Balance: "" },
+            ...flatSection("Current Assets", data.sections.currentAssets),
+            ...flatSection("Non-Current Assets", data.sections.nonCurrentAssets),
+            { Category: "TOTAL ASSETS", Code: "", Account: "", Balance: data.sections.totalAssets },
+            { Category: "", Code: "", Account: "", Balance: "" },
+            { Category: "LIABILITIES & EQUITY", Code: "", Account: "", Balance: "" },
+            ...flatSection("Current Liabilities", data.sections.currentLiabilities),
+            ...flatSection("Non-Current Liabilities", data.sections.nonCurrentLiabilities),
+            ...flatSection("Equity", data.sections.equity),
+            { Category: "", Code: "", Account: "Retained Earnings", Balance: data.sections.retainedEarnings },
+            { Category: "TOTAL LIABILITIES & EQUITY", Code: "", Account: "", Balance: data.sections.totalLiabilities + data.sections.totalEquity }
+        ];
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 40 }, { wch: 20 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Balance Sheet");
+        XLSX.writeFile(wb, `Balance_Sheet_${format(asOfDate || new Date(), "yyyyMMdd")}.xlsx`);
+    };
+
+    const handleExportPdf = () => {
+        if (!data) return;
+
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("Balance Sheet", 14, 20);
+        doc.setFontSize(10);
+        doc.text(`As of: ${format(asOfDate || new Date(), "dd/MM/yyyy")}`, 14, 28);
+
+        const formatRow = (cat: string, code: string, acc: string, bal: any) => [
+            cat, code, acc, bal !== "" ? fmt(bal) : ""
+        ];
+
+        let tableBody: any[] = [
+            [{ content: "ASSETS", colSpan: 4, styles: { fontStyle: 'bold', fillColor: [240, 248, 255] } }],
+            ...flatSection("Current Assets", data.sections.currentAssets).filter(r => r.Category !== "ASSETS").map(r => formatRow(r.Category, r.Code, r.Account, r.Balance)),
+            ...flatSection("Non-Current Assets", data.sections.nonCurrentAssets).map(r => formatRow(r.Category, r.Code, r.Account, r.Balance)),
+            [{ content: "TOTAL ASSETS", colSpan: 3, styles: { fontStyle: 'bold' } }, { content: fmt(data.sections.totalAssets), styles: { fontStyle: 'bold', halign: 'right' } }],
+
+            [{ content: "LIABILITIES & EQUITY", colSpan: 4, styles: { fontStyle: 'bold', fillColor: [255, 250, 240] } }],
+            ...flatSection("Current Liabilities", data.sections.currentLiabilities).filter(r => r.Category !== "LIABILITIES & EQUITY").map(r => formatRow(r.Category, r.Code, r.Account, r.Balance)),
+            ...flatSection("Non-Current Liabilities", data.sections.nonCurrentLiabilities).map(r => formatRow(r.Category, r.Code, r.Account, r.Balance)),
+            ...flatSection("Equity", data.sections.equity).map(r => formatRow(r.Category, r.Code, r.Account, r.Balance)),
+            ["", "", "Retained Earnings", fmt(data.sections.retainedEarnings)],
+            [{ content: "TOTAL LIAB & EQUITY", colSpan: 3, styles: { fontStyle: 'bold' } }, { content: fmt(data.sections.totalLiabilities + data.sections.totalEquity), styles: { fontStyle: 'bold', halign: 'right' } }]
+        ];
+
+        tableBody = tableBody.map(row => {
+            if (row.length === 4 && typeof row[0] === 'string' && row[0].startsWith("Total")) {
+                const newRow = [{ content: row[0], colSpan: 3, styles: { fontStyle: 'italic' } }, row[3]];
+                return newRow;
+            }
+            return row;
+        });
+
+        autoTable(doc, {
+            startY: 34,
+            head: [["Category", "Code", "Account", "Balance"]],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42] },
+            columnStyles: {
+                0: { cellWidth: 40 },
+                1: { cellWidth: 25 },
+                2: { cellWidth: 'auto' },
+                3: { halign: 'right', cellWidth: 35 }
+            },
+            styles: { fontSize: 8 }
+        });
+
+        doc.save(`Balance_Sheet_${format(asOfDate || new Date(), "yyyyMMdd")}.pdf`);
     };
 
     const fmt = (n: number) => n < 0 ? `(${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 0 })})` : n.toLocaleString("en-US", { minimumFractionDigits: 0 });
@@ -55,17 +148,39 @@ export default function BalanceSheetPage() {
             </div>
             <div className="bg-[#111827] border border-white/[0.08] rounded-xl p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                    <div className="space-y-1"><Label className="text-xs text-slate-400">Period (As of)</Label><Select value={selectedPeriod} onValueChange={setSelectedPeriod}><SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white text-xs"><SelectValue placeholder="Latest" /></SelectTrigger><SelectContent className="bg-[#1e293b] border-white/[0.08] text-white">{periods.map((p: any) => <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1">
+                        <Label className="text-xs text-slate-400">As of Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !asOfDate && "text-slate-500")}>
+                                    {asOfDate ? format(asOfDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
+                                <Calendar mode="single" selected={asOfDate} onSelect={setAsOfDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                     <Button onClick={handleGenerate} disabled={loading} className="bg-amber-600 hover:bg-amber-500 text-white h-9">{loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />} Generate</Button>
                 </div>
             </div>
             {data && (
                 <>
-                    <div className={cn("rounded-xl p-4 border flex items-center gap-3", data.validation.isBalanced ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20")}>
-                        {data.validation.isBalanced ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <AlertTriangle className="h-5 w-5 text-red-400" />}
-                        <div>
-                            <p className={cn("font-semibold text-sm", data.validation.isBalanced ? "text-emerald-400" : "text-red-400")}>{data.validation.isBalanced ? "BALANCED — Assets = Liabilities + Equity ✓" : `UNBALANCED — Difference: ${fmt(data.validation.difference)}`}</p>
-                            <p className="text-[10px] text-slate-500">Assets: {fmt(data.validation.totalAssets)} | L+E: {fmt(data.validation.totalLiabilitiesAndEquity)}</p>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-6">
+                        <div className={cn("rounded-xl p-4 border flex items-center gap-3 w-full sm:w-auto", data.validation.isBalanced ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20")}>
+                            {data.validation.isBalanced ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <AlertTriangle className="h-5 w-5 text-red-400" />}
+                            <div>
+                                <p className={cn("font-semibold text-sm", data.validation.isBalanced ? "text-emerald-400" : "text-red-400")}>{data.validation.isBalanced ? "BALANCED — Assets = Liabilities + Equity ✓" : `UNBALANCED — Difference: ${fmt(data.validation.difference)}`}</p>
+                                <p className="text-[10px] text-slate-500">Assets: {fmt(data.validation.totalAssets)} | L+E: {fmt(data.validation.totalLiabilitiesAndEquity)}</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <Button variant="outline" onClick={handleExportExcel} className="h-10 sm:h-9 flex-1 sm:flex-none bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                                <Download className="h-4 w-4 mr-2" /> Excel
+                            </Button>
+                            <Button variant="outline" onClick={handleExportPdf} className="h-10 sm:h-9 flex-1 sm:flex-none bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                                <Download className="h-4 w-4 mr-2" /> PDF
+                            </Button>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
         if (!user.companyId) return NextResponse.json({ error: "No company" }, { status: 400 });
 
         const sp = req.nextUrl.searchParams;
-        const periodId = sp.get("periodId");
+        const startDate = sp.get("startDate");
+        const endDate = sp.get("endDate");
         const mode = sp.get("mode") || "simple"; // simple | extended
 
         // Get period info
@@ -19,13 +20,10 @@ export async function GET(req: NextRequest) {
         let dateTo: Date | undefined;
         let periodName = "All Time";
 
-        if (periodId) {
-            const period = await prisma.period.findUnique({ where: { id: periodId } });
-            if (period) {
-                dateFrom = period.startDate;
-                dateTo = period.endDate;
-                periodName = period.name;
-            }
+        if (startDate && endDate) {
+            dateFrom = new Date(startDate);
+            dateTo = new Date(endDate);
+            periodName = `${startDate} to ${endDate}`;
         }
 
         // Get all active CoAs ordered by code

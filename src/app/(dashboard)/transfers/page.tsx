@@ -117,7 +117,7 @@ export default function TransfersPage() {
                                                 <span className="font-mono text-slate-200 font-medium">{t.journalNumber}</span>
                                             </td>
                                             <td className="px-6 py-4 text-slate-300">
-                                                {format(new Date(t.journalDate), "dd MMM yyyy")}
+                                                {format(new Date(t.journalDate), "dd/MM/yyyy")}
                                                 {t.period && <div className="text-xs text-slate-500 mt-0.5">{t.period.name}</div>}
                                             </td>
                                             <td className="px-6 py-4 text-slate-300">

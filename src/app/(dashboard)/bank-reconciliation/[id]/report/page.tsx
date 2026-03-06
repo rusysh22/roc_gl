@@ -146,7 +146,7 @@ export default function ReconciliationReportPage({ params }: { params: Promise<{
                             {sectionA.depositsInTransit.map((item, i) => (
                                 <div key={i} className="flex justify-between text-sm">
                                     <span className="text-slate-400 flex-1 truncate">
-                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM")}</span>
+                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM/yyyy")}</span>
                                         {item.journalNumber} — {item.description || "-"}
                                     </span>
                                     <span className="font-mono text-emerald-400 ml-4">+{fmt(item.amount)}</span>
@@ -168,7 +168,7 @@ export default function ReconciliationReportPage({ params }: { params: Promise<{
                             {sectionA.outstandingChecks.map((item, i) => (
                                 <div key={i} className="flex justify-between text-sm">
                                     <span className="text-slate-400 flex-1 truncate">
-                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM")}</span>
+                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM/yyyy")}</span>
                                         {item.journalNumber} — {item.description || "-"}
                                     </span>
                                     <span className="font-mono text-red-400 ml-4">-{fmt(item.amount)}</span>
@@ -208,7 +208,7 @@ export default function ReconciliationReportPage({ params }: { params: Promise<{
                             {sectionB.unrecordedDeposits.map((item, i) => (
                                 <div key={i} className="flex justify-between text-sm">
                                     <span className="text-slate-400 flex-1 truncate">
-                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM")}</span>
+                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM/yyyy")}</span>
                                         {item.reference || "-"} — {item.description || "-"}
                                     </span>
                                     <span className="font-mono text-emerald-400 ml-4">+{fmt(item.amount)}</span>
@@ -230,7 +230,7 @@ export default function ReconciliationReportPage({ params }: { params: Promise<{
                             {sectionB.unrecordedCharges.map((item, i) => (
                                 <div key={i} className="flex justify-between text-sm">
                                     <span className="text-slate-400 flex-1 truncate">
-                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM")}</span>
+                                        <span className="font-mono text-xs text-slate-500 mr-2">{format(new Date(item.date), "dd/MM/yyyy")}</span>
                                         {item.reference || "-"} — {item.description || "-"}
                                     </span>
                                     <span className="font-mono text-red-400 ml-4">-{fmt(item.amount)}</span>

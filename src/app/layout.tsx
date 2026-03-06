@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "gl_roc — General Ledger Rusydani on Cloud",
+  title: "RoC GL — General Ledger Rusydani on Cloud",
   description: "Aplikasi SaaS akuntansi berbasis web untuk semua jenis bisnis",
 };
 

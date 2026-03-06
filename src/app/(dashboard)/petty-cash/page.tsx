@@ -165,7 +165,7 @@ export default function PettyCashPage() {
                                                         </div>
                                                         <div className="min-w-0">
                                                             <p className="text-slate-300 truncate">{tx.description || tx.reference || "-"}</p>
-                                                            <p className="text-slate-600 font-mono">{format(new Date(tx.transactionDate), "dd MMM")}</p>
+                                                            <p className="text-slate-600 font-mono">{format(new Date(tx.transactionDate), "dd/MM/yyyy")}</p>
                                                         </div>
                                                     </div>
                                                     <span className={cn("font-mono font-medium shrink-0 ml-2",

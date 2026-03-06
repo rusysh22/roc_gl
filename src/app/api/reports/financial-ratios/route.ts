@@ -11,22 +11,17 @@ export async function GET(req: NextRequest) {
         if (!user.companyId) return NextResponse.json({ error: "No company" }, { status: 400 });
 
         const sp = req.nextUrl.searchParams;
-        const periodId = sp.get("periodId");
+        const startDate = sp.get("startDate");
+        const endDate = sp.get("endDate");
 
         let dateTo: Date | undefined;
         let dateFrom: Date | undefined;
-        let periodName = "Current";
+        let periodName = "All Time";
 
-        if (periodId) {
-            const period = await prisma.period.findUnique({
-                where: { id: periodId },
-                include: { fiscalYear: true },
-            });
-            if (period) {
-                dateTo = period.endDate;
-                dateFrom = period.fiscalYear.startDate;
-                periodName = period.name;
-            }
+        if (startDate && endDate) {
+            dateFrom = new Date(startDate);
+            dateTo = new Date(endDate);
+            periodName = `${startDate} to ${endDate}`;
         }
 
         // Helper to get cumulative balance for accounts matching a filter

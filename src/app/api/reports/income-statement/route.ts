@@ -11,27 +11,18 @@ export async function GET(req: NextRequest) {
         if (!user.companyId) return NextResponse.json({ error: "No company" }, { status: 400 });
 
         const sp = req.nextUrl.searchParams;
-        const periodId = sp.get("periodId");
-        const fiscalYearId = sp.get("fiscalYearId");
+        const startDate = sp.get("startDate");
+        const endDate = sp.get("endDate");
 
         let dateFrom: Date | undefined;
         let dateTo: Date | undefined;
         let periodName = "All Time";
 
-        if (periodId) {
-            const period = await prisma.period.findUnique({ where: { id: periodId } });
-            if (period) {
-                dateFrom = period.startDate;
-                dateTo = period.endDate;
-                periodName = period.name;
-            }
-        } else if (fiscalYearId) {
-            const fy = await prisma.fiscalYear.findUnique({ where: { id: fiscalYearId } });
-            if (fy) {
-                dateFrom = fy.startDate;
-                dateTo = fy.endDate;
-                periodName = fy.name;
-            }
+        if (startDate && endDate) {
+            dateFrom = new Date(startDate);
+            dateTo = new Date(endDate);
+            // Quick format for display Name
+            periodName = `${startDate} to ${endDate}`;
         }
 
         // Get all Revenue and Expense accounts

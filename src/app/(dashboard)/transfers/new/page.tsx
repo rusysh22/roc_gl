@@ -255,7 +255,7 @@ export default function NewTransferPage() {
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !formData.date && "text-slate-500")}>
-                                        {formData.date ? format(formData.date, "PPP") : <span>Pick a date</span>}
+                                        {formData.date ? format(formData.date, "dd/MM/yyyy") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">

@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Scale, Search, AlertTriangle, CheckCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Scale, Search, AlertTriangle, CheckCircle, Download } from "lucide-react";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -13,22 +19,163 @@ import { cn } from "@/lib/utils";
 export default function TrialBalancePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [periods, setPeriods] = useState<any[]>([]);
-    const [selectedPeriod, setSelectedPeriod] = useState("");
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+    const [endDate, setEndDate] = useState<Date | undefined>(undefined);
     const [mode, setMode] = useState("simple");
     const [data, setData] = useState<any>(null);
-
-    useEffect(() => { fetch("/api/master/period").then(r => r.ok ? r.json() : []).then(setPeriods); }, []);
 
     const handleGenerate = async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams({ mode });
-            if (selectedPeriod) params.set("periodId", selectedPeriod);
+            if (startDate) params.set("startDate", format(startDate, "yyyy-MM-dd"));
+            if (endDate) params.set("endDate", format(endDate, "yyyy-MM-dd"));
             const res = await fetch(`/api/reports/trial-balance?${params}`);
             if (res.ok) setData(await res.json());
         } catch { toast.error("System error"); }
         finally { setLoading(false); }
+    };
+
+    const handleExportExcel = () => {
+        if (!data) return;
+
+        const isExtended = mode === "extended";
+
+        const exportData = data.rows.map((row: any) => {
+            const base: any = {
+                Code: row.code,
+                "Account Name": row.name
+            };
+
+            if (isExtended) {
+                Object.assign(base, {
+                    "Open Debit": row.openingDebit || "",
+                    "Open Credit": row.openingCredit || "",
+                    "Mut. Debit": row.mutationDebit || "",
+                    "Mut. Credit": row.mutationCredit || ""
+                });
+            }
+
+            Object.assign(base, {
+                Debit: row.totalDebit || "",
+                Credit: row.totalCredit || "",
+                Balance: row.balance
+            });
+
+            return base;
+        });
+
+        const totalsRow: any = {
+            Code: "",
+            "Account Name": "TOTAL"
+        };
+
+        if (isExtended) {
+            Object.assign(totalsRow, {
+                "Open Debit": "",
+                "Open Credit": "",
+                "Mut. Debit": "",
+                "Mut. Credit": ""
+            });
+        }
+
+        Object.assign(totalsRow, {
+            Debit: data.totals.totalDebit,
+            Credit: data.totals.totalCredit,
+            Balance: data.totals.totalDebit - data.totals.totalCredit
+        });
+
+        exportData.push(totalsRow);
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = isExtended
+            ? [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }]
+            : [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Trial Balance");
+        XLSX.writeFile(wb, `Trial_Balance_${format(startDate || new Date(), "yyyyMMdd")}_${format(endDate || new Date(), "yyyyMMdd")}.xlsx`);
+    };
+
+    const handleExportPdf = () => {
+        if (!data) return;
+
+        const isExtended = mode === "extended";
+        const doc = new jsPDF(isExtended ? 'landscape' : 'portrait');
+
+        doc.setFontSize(16);
+        doc.text("Trial Balance Report", 14, 20);
+        doc.setFontSize(10);
+        if (startDate && endDate) {
+            doc.text(`Period: ${format(startDate, "dd/MM/yyyy")} to ${format(endDate, "dd/MM/yyyy")} (${isExtended ? 'Extended' : 'Simple'})`, 14, 28);
+        }
+
+        const head = isExtended
+            ? [["Code", "Account Name", "Open Debit", "Open Credit", "Mut. Debit", "Mut. Credit", "Debit", "Credit", "Balance"]]
+            : [["Code", "Account Name", "Debit", "Credit", "Balance"]];
+
+        const body = data.rows.map((row: any) => {
+            const rowData: any[] = [row.code, row.name];
+            if (isExtended) {
+                rowData.push(
+                    row.openingDebit ? fmt(row.openingDebit) : "-",
+                    row.openingCredit ? fmt(row.openingCredit) : "-",
+                    row.mutationDebit ? fmt(row.mutationDebit) : "-",
+                    row.mutationCredit ? fmt(row.mutationCredit) : "-"
+                );
+            }
+            rowData.push(
+                row.totalDebit ? fmt(row.totalDebit) : "-",
+                row.totalCredit ? fmt(row.totalCredit) : "-",
+                row.balance < 0 ? `(${fmt(Math.abs(row.balance))})` : fmt(row.balance)
+            );
+            return rowData;
+        });
+
+        const totalsRow: any[] = [
+            { content: "TOTAL", colSpan: 2, styles: { fontStyle: 'bold' } }
+        ];
+        if (isExtended) {
+            totalsRow.push("", "", "", "");
+        }
+        totalsRow.push(
+            { content: fmt(data.totals.totalDebit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: fmt(data.totals.totalCredit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: fmt(data.totals.totalDebit - data.totals.totalCredit), styles: { fontStyle: 'bold', halign: 'right' } }
+        );
+        body.push(totalsRow);
+
+        const columnStyles: any = isExtended
+            ? {
+                0: { cellWidth: 20 },
+                1: { cellWidth: 'auto' },
+                2: { halign: 'right', cellWidth: 25 },
+                3: { halign: 'right', cellWidth: 25 },
+                4: { halign: 'right', cellWidth: 25 },
+                5: { halign: 'right', cellWidth: 25 },
+                6: { halign: 'right', cellWidth: 25 },
+                7: { halign: 'right', cellWidth: 25 },
+                8: { halign: 'right', cellWidth: 25 }
+            }
+            : {
+                0: { cellWidth: 25 },
+                1: { cellWidth: 'auto' },
+                2: { halign: 'right', cellWidth: 35 },
+                3: { halign: 'right', cellWidth: 35 },
+                4: { halign: 'right', cellWidth: 35 }
+            };
+
+        autoTable(doc, {
+            startY: 34,
+            head: head,
+            body: body,
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42] },
+            columnStyles: columnStyles,
+            styles: { fontSize: 8 }
+        });
+
+        doc.save(`Trial_Balance_${format(startDate || new Date(), "yyyyMMdd")}_${format(endDate || new Date(), "yyyyMMdd")}.pdf`);
     };
 
     const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2 });
@@ -44,13 +191,32 @@ export default function TrialBalancePage() {
             </div>
 
             <div className="bg-[#111827] border border-white/[0.08] rounded-xl p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="space-y-1">
-                        <Label className="text-xs text-slate-400">Period</Label>
-                        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                            <SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white text-xs"><SelectValue placeholder="All Time" /></SelectTrigger>
-                            <SelectContent className="bg-[#1e293b] border-white/[0.08] text-white">{periods.map((p: any) => <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <Label className="text-xs text-slate-400">Start Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !startDate && "text-slate-500")}>
+                                    {startDate ? format(startDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
+                                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs text-slate-400">End Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !endDate && "text-slate-500")}>
+                                    {endDate ? format(endDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
+                                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                     <div className="space-y-1">
                         <Label className="text-xs text-slate-400">Mode</Label>
@@ -71,13 +237,23 @@ export default function TrialBalancePage() {
             {data && (
                 <>
                     {/* Balance Validation */}
-                    <div className={cn("rounded-xl p-4 border flex items-center gap-3", data.totals.isBalanced ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20")}>
-                        {data.totals.isBalanced ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <AlertTriangle className="h-5 w-5 text-red-400" />}
-                        <div>
-                            <p className={cn("font-semibold text-sm", data.totals.isBalanced ? "text-emerald-400" : "text-red-400")}>
-                                {data.totals.isBalanced ? "BALANCED ✓" : `UNBALANCED — Difference: ${fmt(data.totals.difference)}`}
-                            </p>
-                            <p className="text-[10px] text-slate-500">Total Debit: {fmt(data.totals.totalDebit)} | Total Credit: {fmt(data.totals.totalCredit)}</p>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-6 mb-4">
+                        <div className={cn("rounded-xl p-4 border flex items-center gap-3 w-full sm:w-auto", data.totals.isBalanced ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20")}>
+                            {data.totals.isBalanced ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <AlertTriangle className="h-5 w-5 text-red-400" />}
+                            <div>
+                                <p className={cn("font-semibold text-sm", data.totals.isBalanced ? "text-emerald-400" : "text-red-400")}>
+                                    {data.totals.isBalanced ? "BALANCED ✓" : `UNBALANCED — Difference: ${fmt(data.totals.difference)}`}
+                                </p>
+                                <p className="text-[10px] text-slate-500">Total Debit: {fmt(data.totals.totalDebit)} | Total Credit: {fmt(data.totals.totalCredit)}</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <Button variant="outline" onClick={handleExportExcel} className="h-10 sm:h-9 flex-1 sm:flex-none bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                                <Download className="h-4 w-4 mr-2" /> Excel
+                            </Button>
+                            <Button variant="outline" onClick={handleExportPdf} className="h-10 sm:h-9 flex-1 sm:flex-none bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                                <Download className="h-4 w-4 mr-2" /> PDF
+                            </Button>
                         </div>
                     </div>
 

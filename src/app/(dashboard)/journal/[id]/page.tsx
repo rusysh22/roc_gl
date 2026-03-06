@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
     ArrowLeft, Save, Send, ShieldCheck, Undo2, Plus, Trash2,
-    Search, Calculator, FileText, CheckCircle2, AlertTriangle, Loader2
+    Search, Calculator, FileText, CheckCircle2, AlertTriangle, Loader2,
+    Keyboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
     ]);
 
     // Autocomplete state
+    const [allCoAs, setAllCoAs] = useState<CoA[]>([]);
     const [searchResults, setSearchResults] = useState<CoA[]>([]);
     const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -96,6 +98,12 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
     const isReadonly = status !== "DRAFT" && status !== "REJECTED";
 
     useEffect(() => {
+        // Fetch all CoAs for quick dropdown (empty state)
+        fetch("/api/master/coa")
+            .then(res => res.json())
+            .then(data => setAllCoAs(data))
+            .catch(console.error);
+
         if (!isNew) {
             fetchJournal();
         }
@@ -139,8 +147,8 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
 
     // Autocomplete search
     useEffect(() => {
-        if (searchQuery.length < 2) {
-            setSearchResults([]);
+        if (!searchQuery) {
+            setSearchResults(allCoAs.slice(0, 50)); // Show top 50 by default
             return;
         }
 
@@ -156,7 +164,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [searchQuery]);
+    }, [searchQuery, allCoAs]);
 
     const addLine = () => {
         if (isReadonly) return;
@@ -198,6 +206,30 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
         setLines(newLines);
         setActiveRowIndex(null);
         setSearchQuery("");
+        document.getElementById(`desc-${index}`)?.focus();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent, index: number, field: string) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            if (field === "coaSearch" && searchResults.length > 0) {
+                selectCoA(index, searchResults[0]); // Auto select first on enter
+            } else if (field === "debitAmount" || field === "creditAmount") {
+                if (index === lines.length - 1) {
+                    addLine();
+                    // Focus new line after render
+                    setTimeout(() => document.getElementById(`coa-${index + 1}`)?.focus(), 50);
+                } else {
+                    document.getElementById(`coa-${index + 1}`)?.focus();
+                }
+            }
+        } else if (e.key === "Escape" && field === "coaSearch") {
+            setActiveRowIndex(null);
+            document.getElementById(`coa-${index}`)?.blur();
+        } else if (e.key === "ArrowDown" && field === "coaSearch" && searchResults.length > 0) {
+            e.preventDefault();
+            document.getElementById(`coa-item-${index}-0`)?.focus();
+        }
     };
 
     const saveDraft = async () => {
@@ -391,7 +423,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <Button disabled={isReadonly} variant="outline" className="w-full justify-start text-left mt-1 bg-[#0d1117] border-white/[0.08] text-white hover:bg-white/[0.04] px-3">
-                                                {format(journalDate, "dd MMM yyyy")}
+                                                {format(journalDate, "dd/MM/yyyy")}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0 bg-[#1e293b] outline-none border-white/[0.08] text-white">
@@ -404,7 +436,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <Button disabled={isReadonly} variant="outline" className="w-full justify-start text-left mt-1 bg-[#0d1117] border-white/[0.08] text-white hover:bg-white/[0.04] px-3">
-                                                {format(postingDate, "dd MMM yyyy")}
+                                                {format(postingDate, "dd/MM/yyyy")}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0 bg-[#1e293b] outline-none border-white/[0.08] text-white">
@@ -457,9 +489,18 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                 <Calculator className="h-4 w-4 text-emerald-400" /> Journal Lines
                             </h3>
                             {!isReadonly && (
-                                <Button onClick={addLine} variant="outline" size="sm" className="h-8 bg-white/[0.04] border-white/[0.08] text-white hover:bg-white/[0.08]">
-                                    <Plus className="h-3 w-3 mr-1" /> Add Line
-                                </Button>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2 text-xs text-slate-400 bg-black/20 px-3 py-1.5 rounded-md border border-white/[0.04]">
+                                        <Keyboard className="h-3.5 w-3.5 text-slate-500" />
+                                        <span className="hidden sm:inline">Shortcuts: </span>
+                                        <kbd className="bg-white/10 px-1.5 rounded text-slate-300">Tab</kbd> Next
+                                        <kbd className="bg-white/10 px-1.5 rounded text-slate-300 ml-1">Enter</kbd> Select / Add Row
+                                        <kbd className="bg-white/10 px-1.5 rounded text-slate-300 ml-1">↓</kbd> Dropdown
+                                    </div>
+                                    <Button onClick={addLine} variant="outline" size="sm" className="h-8 bg-white/[0.04] border-white/[0.08] text-white hover:bg-white/[0.08]">
+                                        <Plus className="h-3 w-3 mr-1" /> Add Line
+                                    </Button>
+                                </div>
                             )}
                         </div>
 
@@ -487,6 +528,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                                 ) : (
                                                     <div className="relative">
                                                         <Input
+                                                            id={`coa-${index}`}
                                                             placeholder="Search CoA..."
                                                             value={activeRowIndex === index ? searchQuery : (line.coa ? `${line.coa.code} - ${line.coa.name}` : "")}
                                                             onChange={(e) => {
@@ -497,15 +539,31 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                                                 setActiveRowIndex(index);
                                                                 setSearchQuery(line.coa ? line.coa.code : "");
                                                             }}
+                                                            onKeyDown={(e) => handleKeyDown(e, index, "coaSearch")}
                                                             className="h-8 text-xs bg-[#0d1117] border-white/[0.08] text-white w-full"
                                                         />
                                                         {activeRowIndex === index && searchResults.length > 0 && (
                                                             <div className="absolute top-10 left-0 w-[400px] max-h-[300px] overflow-y-auto bg-[#1e293b] border border-white/[0.1] rounded-md shadow-xl z-50 p-1">
-                                                                {searchResults.map(coa => (
+                                                                {searchResults.map((coa, coaIdx) => (
                                                                     <div
                                                                         key={coa.id}
+                                                                        id={`coa-item-${index}-${coaIdx}`}
+                                                                        tabIndex={0}
                                                                         onClick={() => selectCoA(index, coa)}
-                                                                        className="px-3 py-2 text-xs hover:bg-white/[0.05] cursor-pointer text-slate-200 border-b border-white/[0.05] last:border-0"
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === "Enter") {
+                                                                                e.preventDefault();
+                                                                                selectCoA(index, coa);
+                                                                            } else if (e.key === "ArrowDown") {
+                                                                                e.preventDefault();
+                                                                                document.getElementById(`coa-item-${index}-${coaIdx + 1}`)?.focus();
+                                                                            } else if (e.key === "ArrowUp") {
+                                                                                e.preventDefault();
+                                                                                if (coaIdx === 0) document.getElementById(`coa-item-${index}-${coaIdx - 1}`)?.focus();
+                                                                                else document.getElementById(`coa-item-${index}-${coaIdx - 1}`)?.focus();
+                                                                            }
+                                                                        }}
+                                                                        className="px-3 py-2 text-xs hover:bg-white/[0.05] focus:bg-white/[0.1] focus:outline-none cursor-pointer text-slate-200 border-b border-white/[0.05] last:border-0"
                                                                     >
                                                                         <div className="font-medium text-blue-400">{coa.code}</div>
                                                                         <div className="flex justify-between mt-1">
@@ -524,8 +582,10 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                                     <div className="text-slate-300">{line.description || "-"}</div>
                                                 ) : (
                                                     <Input
+                                                        id={`desc-${index}`}
                                                         value={line.description}
                                                         onChange={(e) => updateLine(index, "description", e.target.value)}
+                                                        onKeyDown={(e) => handleKeyDown(e, index, "description")}
                                                         className="h-8 text-xs bg-[#0d1117] border-white/[0.08] text-white w-full"
                                                         placeholder="Line memo..."
                                                     />
@@ -536,12 +596,14 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                                     <div className="text-slate-300 text-right font-medium">{Number(line.debitAmount).toLocaleString("en-US")}</div>
                                                 ) : (
                                                     <Input
+                                                        id={`debit-${index}`}
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
                                                         value={line.debitAmount || ""}
                                                         onChange={(e) => updateLine(index, "debitAmount", e.target.value)}
                                                         onFocus={(e) => e.target.select()}
+                                                        onKeyDown={(e) => handleKeyDown(e, index, "debitAmount")}
                                                         className="h-8 text-xs bg-[#0d1117] border-white/[0.08] text-white text-right font-medium w-full"
                                                     />
                                                 )}
@@ -551,12 +613,14 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                                                     <div className="text-slate-300 text-right font-medium">{Number(line.creditAmount).toLocaleString("en-US")}</div>
                                                 ) : (
                                                     <Input
+                                                        id={`credit-${index}`}
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
                                                         value={line.creditAmount || ""}
                                                         onChange={(e) => updateLine(index, "creditAmount", e.target.value)}
                                                         onFocus={(e) => e.target.select()}
+                                                        onKeyDown={(e) => handleKeyDown(e, index, "creditAmount")}
                                                         className="h-8 text-xs bg-[#0d1117] border-white/[0.08] text-white text-right font-medium w-full"
                                                     />
                                                 )}
@@ -653,7 +717,7 @@ export default function JournalFormPage({ params }: { params: Promise<{ id: stri
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className="w-full justify-start text-left bg-[#0d1117] border-white/[0.08] text-white hover:bg-white/[0.04] px-3">
-                                    {format(reverseDateInput, "dd MMM yyyy")}
+                                    {format(reverseDateInput, "dd/MM/yyyy")}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0 bg-[#1e293b] outline-none border-white/[0.08] text-white">

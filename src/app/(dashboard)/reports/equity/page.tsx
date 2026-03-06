@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Users, Search } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Search, Download } from "lucide-react";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,29 +17,108 @@ import { cn } from "@/lib/utils";
 export default function EquityPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [periods, setPeriods] = useState<any[]>([]);
-    const [fiscalYears, setFiscalYears] = useState<any[]>([]);
-    const [selectedPeriod, setSelectedPeriod] = useState("");
-    const [selectedFY, setSelectedFY] = useState("");
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+    const [endDate, setEndDate] = useState<Date | undefined>(undefined);
     const [data, setData] = useState<any>(null);
-
-    useEffect(() => {
-        Promise.all([
-            fetch("/api/master/period").then(r => r.ok ? r.json() : []),
-            fetch("/api/master/fiscal-year").then(r => r.ok ? r.json() : []),
-        ]).then(([p, fy]) => { setPeriods(p); setFiscalYears(fy); });
-    }, []);
 
     const handleGenerate = async () => {
         setLoading(true);
         const params = new URLSearchParams();
-        if (selectedPeriod) params.set("periodId", selectedPeriod);
-        else if (selectedFY) params.set("fiscalYearId", selectedFY);
+        if (startDate) params.set("startDate", format(startDate, "yyyy-MM-dd"));
+        if (endDate) params.set("endDate", format(endDate, "yyyy-MM-dd"));
         try {
             const res = await fetch(`/api/reports/equity?${params}`);
             if (res.ok) setData(await res.json());
         } catch { toast.error("System error"); }
         finally { setLoading(false); }
+    };
+
+    const handleExportExcel = () => {
+        if (!data) return;
+
+        const exportData = data.components.map((c: any) => ({
+            Component: `${c.code} — ${c.name}`,
+            Opening: c.openingBalance,
+            Additions: c.additions || "",
+            Deductions: c.deductions ? -c.deductions : "",
+            Closing: c.closingBalance
+        }));
+
+        exportData.push({
+            Component: "Net Profit (from P&L)",
+            Opening: "",
+            Additions: data.netProfit >= 0 ? data.netProfit : "",
+            Deductions: data.netProfit < 0 ? data.netProfit : "",
+            Closing: data.netProfit
+        });
+
+        exportData.push({
+            Component: "TOTAL EQUITY",
+            Opening: data.totalOpening,
+            Additions: "",
+            Deductions: "",
+            Closing: data.totalClosing
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Changes in Equity");
+        XLSX.writeFile(wb, `Changes_In_Equity_${format(startDate || new Date(), "yyyyMMdd")}_${format(endDate || new Date(), "yyyyMMdd")}.xlsx`);
+    };
+
+    const handleExportPdf = () => {
+        if (!data) return;
+
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("Statement of Changes in Equity", 14, 20);
+        doc.setFontSize(10);
+        if (startDate && endDate) {
+            doc.text(`Period: ${format(startDate, "dd/MM/yyyy")} to ${format(endDate, "dd/MM/yyyy")}`, 14, 28);
+        }
+
+        const body: any[] = data.components.map((c: any) => [
+            `${c.code} — ${c.name}${c.isRetainedEarnings ? " (RE)" : ""}`,
+            fmt(c.openingBalance),
+            c.additions > 0 ? fmt(c.additions) : "-",
+            c.deductions > 0 ? `(${fmt(c.deductions)})` : "-",
+            fmt(c.closingBalance)
+        ]);
+
+        body.push([
+            { content: "Net Profit (from P&L)", styles: { fontStyle: 'italic' } },
+            "-",
+            data.netProfit >= 0 ? fmt(data.netProfit) : "-",
+            data.netProfit < 0 ? `(${fmt(Math.abs(data.netProfit))})` : "-",
+            fmt(data.netProfit)
+        ]);
+
+        body.push([
+            { content: "TOTAL EQUITY", styles: { fontStyle: 'bold' } },
+            { content: fmt(data.totalOpening), styles: { fontStyle: 'bold', halign: 'right' } },
+            "",
+            "",
+            { content: fmt(data.totalClosing), styles: { fontStyle: 'bold', halign: 'right' } }
+        ]);
+
+        autoTable(doc, {
+            startY: 34,
+            head: [["Component", "Opening", "Additions", "Deductions", "Closing"]],
+            body: body,
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42] },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { halign: 'right', cellWidth: 25 },
+                2: { halign: 'right', cellWidth: 25, textColor: [0, 150, 0] },
+                3: { halign: 'right', cellWidth: 25, textColor: [200, 0, 0] },
+                4: { halign: 'right', cellWidth: 25, fontStyle: 'bold' }
+            },
+            styles: { fontSize: 8 }
+        });
+
+        doc.save(`Changes_In_Equity_${format(startDate || new Date(), "yyyyMMdd")}_${format(endDate || new Date(), "yyyyMMdd")}.pdf`);
     };
 
     const fmt = (n: number) => n < 0 ? `(${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 0 })})` : n.toLocaleString("en-US", { minimumFractionDigits: 0 });
@@ -47,13 +131,45 @@ export default function EquityPage() {
             </div>
             <div className="bg-[#111827] border border-white/[0.08] rounded-xl p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                    <div className="space-y-1"><Label className="text-xs text-slate-400">Period</Label><Select value={selectedPeriod} onValueChange={(v) => { setSelectedPeriod(v); setSelectedFY(""); }}><SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white text-xs"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-[#1e293b] border-white/[0.08] text-white">{periods.map((p: any) => <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>)}</SelectContent></Select></div>
-                    <div className="space-y-1"><Label className="text-xs text-slate-400">or Fiscal Year</Label><Select value={selectedFY} onValueChange={(v) => { setSelectedFY(v); setSelectedPeriod(""); }}><SelectTrigger className="bg-[#0a0e1a] border-white/[0.1] text-white text-xs"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="bg-[#1e293b] border-white/[0.08] text-white">{fiscalYears.map((fy: any) => <SelectItem key={fy.id} value={fy.id} className="text-xs">{fy.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-1">
+                        <Label className="text-xs text-slate-400">Start Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !startDate && "text-slate-500")}>
+                                    {startDate ? format(startDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
+                                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs text-slate-400">End Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal bg-[#0a0e1a] border-white/[0.1] text-white hover:bg-white/[0.04]", !endDate && "text-slate-500")}>
+                                    {endDate ? format(endDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#1e293b] border-white/[0.1] text-white shadow-xl">
+                                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                     <Button onClick={handleGenerate} disabled={loading} className="bg-pink-600 hover:bg-pink-500 text-white h-9">{loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />} Generate</Button>
                 </div>
             </div>
             {data && (
-                <div className="bg-[#111827] border border-white/[0.08] rounded-xl overflow-hidden">
+                <div className="bg-[#111827] border border-white/[0.08] rounded-xl overflow-hidden mt-6">
+                    <div className="p-4 border-b border-white/[0.06] flex justify-end gap-2">
+                        <Button variant="outline" onClick={handleExportExcel} className="h-9 bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                            <Download className="h-4 w-4 mr-2" /> Excel
+                        </Button>
+                        <Button variant="outline" onClick={handleExportPdf} className="h-9 bg-[#111827] border-white/[0.08] text-white hover:bg-white/[0.04]">
+                            <Download className="h-4 w-4 mr-2" /> PDF
+                        </Button>
+                    </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                             <thead className="bg-[#0a0e1a] text-[10px] uppercase text-slate-500 font-semibold"><tr><th className="px-4 py-2 text-left">Component</th><th className="px-3 py-2 text-right">Opening</th><th className="px-3 py-2 text-right text-emerald-500">Additions</th><th className="px-3 py-2 text-right text-red-500">Deductions</th><th className="px-3 py-2 text-right">Closing</th></tr></thead>

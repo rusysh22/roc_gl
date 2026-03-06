@@ -166,7 +166,7 @@ export default function BudgetListPage() {
                                 </div>
                             </div>
                             <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-                                <span className="text-[10px] text-slate-600">{format(new Date(b.createdAt), "dd MMM yyyy")}</span>
+                                <span className="text-[10px] text-slate-600">{format(new Date(b.createdAt), "dd/MM/yyyy")}</span>
                                 <ArrowRight className="h-4 w-4 text-slate-600 group-hover:text-violet-400 transition-colors" />
                             </div>
                         </div>
