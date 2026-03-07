@@ -2,8 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { authConfig } from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    ...authConfig,
     providers: [
         Credentials({
             name: "credentials",
@@ -74,33 +76,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
         }),
     ],
-    session: {
-        strategy: "jwt",
-        maxAge: 24 * 60 * 60, // 24 hours
-    },
-    pages: {
-        signIn: "/login",
-    },
-    callbacks: {
-        async jwt({ token, user }) {
-            if (user) {
-                token.id = user.id;
-                token.companyId = (user as any).companyId;
-                token.companyName = (user as any).companyName;
-                token.systemRole = (user as any).systemRole;
-                token.roleId = (user as any).roleId;
-            }
-            return token;
-        },
-        async session({ session, token }) {
-            if (session.user) {
-                session.user.id = token.id as string;
-                (session.user as any).companyId = token.companyId;
-                (session.user as any).companyName = token.companyName;
-                (session.user as any).systemRole = token.systemRole;
-                (session.user as any).roleId = token.roleId;
-            }
-            return session;
-        },
-    },
 });
